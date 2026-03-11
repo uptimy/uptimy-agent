@@ -3,16 +3,16 @@
 #  Uptimy Agent Installer
 #
 #  One-liner (Linux / macOS):
-#    curl -sSfL https://raw.githubusercontent.com/uptimy/uptimy-agent/main/scripts/install.sh | sudo bash
+#    curl -sSfL https://raw.githubusercontent.com/uptimy/uptimy-agent/master/scripts/install.sh | sudo bash
 #
 #  Environment variables:
-#    UPTIMY_VERSION     — version tag to install        (default: latest)
-#    UPTIMY_INSTALL     — binary install directory      (default: /usr/local/bin)
-#    UPTIMY_CONFIG      — config directory              (default: /etc/uptimy)
-#    UPTIMY_DATA        — data directory                (default: /var/lib/uptimy)
-#    UPTIMY_USER        — service user                  (default: uptimy)
-#    UPTIMY_NO_SERVICE  — skip service setup (set to 1)
-#    UPTIMY_NO_VERIFY   — skip checksum verification    (set to 1)
+#    UPTIMY_VERSION     - version tag to install        (default: latest)
+#    UPTIMY_INSTALL     - binary install directory      (default: /usr/local/bin)
+#    UPTIMY_CONFIG      - config directory              (default: /etc/uptimy)
+#    UPTIMY_DATA        - data directory                (default: /var/lib/uptimy)
+#    UPTIMY_USER        - service user                  (default: uptimy)
+#    UPTIMY_NO_SERVICE  - skip service setup (set to 1)
+#    UPTIMY_NO_VERIFY   - skip checksum verification    (set to 1)
 # ──────────────────────────────────────────────────────────────────────
 set -euo pipefail
 
@@ -86,14 +86,14 @@ verify_checksum() {
   filename="$(basename "$file")"
 
   if [ ! -f "$checksums_file" ]; then
-    warn "Checksums file not found — skipping verification"
+    warn "Checksums file not found - skipping verification"
     return 0
   fi
 
   local expected
   expected="$(grep "$filename" "$checksums_file" | awk '{print $1}')"
   if [ -z "$expected" ]; then
-    warn "No checksum entry for $filename — skipping verification"
+    warn "No checksum entry for $filename - skipping verification"
     return 0
   fi
 
@@ -103,7 +103,7 @@ verify_checksum() {
   elif command -v shasum >/dev/null 2>&1; then
     actual="$(shasum -a 256 "$file" | awk '{print $1}')"
   else
-    warn "Neither sha256sum nor shasum found — skipping verification"
+    warn "Neither sha256sum nor shasum found - skipping verification"
     return 0
   fi
 
@@ -291,7 +291,7 @@ if [ ! -f "${CONFIG_DIR}/config.yaml" ]; then
     write_default_config "${CONFIG_DIR}/config.yaml"
   fi
 else
-  info "Config already exists — keeping ${CONFIG_DIR}/config.yaml"
+  info "Config already exists - keeping ${CONFIG_DIR}/config.yaml"
 fi
 
 # ── Data directory ───────────────────────────────────────────────────
@@ -303,7 +303,7 @@ if [ "$OS" = "linux" ] && [ "$NO_SERVICE" != "1" ]; then
   if ! id "$SERVICE_USER" >/dev/null 2>&1; then
     info "Creating service user: ${SERVICE_USER}"
     useradd --system --no-create-home --shell /usr/sbin/nologin "$SERVICE_USER" 2>/dev/null \
-      || warn "Could not create user ${SERVICE_USER} — you may need to create it manually"
+      || warn "Could not create user ${SERVICE_USER} - you may need to create it manually"
   fi
   chown -R "${SERVICE_USER}:${SERVICE_USER}" "$DATA_DIR" 2>/dev/null || true
   chown -R "${SERVICE_USER}:${SERVICE_USER}" "$CONFIG_DIR" 2>/dev/null || true
@@ -317,7 +317,7 @@ if [ "$OS" = "linux" ] && [ "$NO_SERVICE" != "1" ]; then
       else
         cat > "$UNIT_FILE" <<EOF
 [Unit]
-Description=Uptimy Agent — Self-Healing Infrastructure Watchdog
+Description=Uptimy Agent - Self-Healing Infrastructure Watchdog
 Documentation=https://github.com/uptimy/uptimy-agent
 After=network-online.target
 Wants=network-online.target
@@ -342,7 +342,7 @@ EOF
       fi
       systemctl daemon-reload
     else
-      info "systemd unit already exists — skipping"
+      info "systemd unit already exists - skipping"
     fi
   fi
 fi
@@ -356,7 +356,7 @@ if [ "$OS" = "darwin" ] && [ "$NO_SERVICE" != "1" ]; then
     chmod 644 "$PLIST_PATH"
     chown root:wheel "$PLIST_PATH"
   else
-    info "launchd plist already exists — skipping"
+    info "launchd plist already exists - skipping"
   fi
 fi
 
@@ -384,5 +384,5 @@ else
 fi
 
 echo ""
-info "Examples: https://github.com/uptimy/uptimy-agent/tree/main/examples"
+info "Examples: https://github.com/uptimy/uptimy-agent/tree/master/examples"
 echo ""

@@ -15,12 +15,15 @@ type RestartContainerAction struct {
 	logger *zap.SugaredLogger
 }
 
+// NewRestartContainerAction creates a RestartContainerAction.
 func NewRestartContainerAction(logger *zap.SugaredLogger) *RestartContainerAction {
 	return &RestartContainerAction{logger: logger}
 }
 
+// Name returns the action name.
 func (a *RestartContainerAction) Name() string { return "restart_container" }
 
+// Execute runs the restart container action.
 func (a *RestartContainerAction) Execute(ctx context.Context, params map[string]string) error {
 	container := params["container"]
 	if container == "" {

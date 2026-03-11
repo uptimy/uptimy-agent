@@ -1,4 +1,4 @@
-// Package checks provides the check engine — scheduling, executing,
+// Package checks provides the check engine - scheduling, executing,
 // and collecting health check results for the Uptimy Agent.
 package checks
 
@@ -11,6 +11,7 @@ import (
 // CheckStatus represents the result of a health check.
 type CheckStatus string
 
+// CheckStatus values.
 const (
 	StatusHealthy  CheckStatus = "healthy"
 	StatusDegraded CheckStatus = "degraded"
@@ -39,13 +40,13 @@ type CheckResult struct {
 // MarshalJSON implements json.Marshaler so the Error field serializes
 // as a string instead of the default empty-object representation of
 // the error interface.
-func (r CheckResult) MarshalJSON() ([]byte, error) {
+func (r *CheckResult) MarshalJSON() ([]byte, error) {
 	type Alias CheckResult
 	aux := struct {
 		Alias
 		Error string `json:"error,omitempty"`
 	}{
-		Alias: Alias(r),
+		Alias: Alias(*r),
 	}
 	if r.Error != nil {
 		aux.Error = r.Error.Error()

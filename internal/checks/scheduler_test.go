@@ -35,7 +35,9 @@ func TestScheduler_RunsChecksAndDeliversResults(t *testing.T) {
 		},
 	}
 
-	registry.Register(mc)
+	if err := registry.Register(mc); err != nil {
+		t.Fatalf("register: %v", err)
+	}
 	scheduler.AddCheck(mc, 100*time.Millisecond)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
@@ -77,7 +79,9 @@ func TestScheduler_MultipleChecks(t *testing.T) {
 				Timestamp: time.Now(),
 			},
 		}
-		registry.Register(mc)
+		if err := registry.Register(mc); err != nil {
+			t.Fatalf("register: %v", err)
+		}
 		scheduler.AddCheck(mc, 100*time.Millisecond)
 	}
 

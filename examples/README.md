@@ -1,4 +1,4 @@
-# Uptimy Agent — Example Configurations
+# Uptimy Agent - Example Configurations
 
 Ready-to-use configurations for common self-healing scenarios. Copy one, edit it for your environment, and start the agent.
 
@@ -6,7 +6,7 @@ Ready-to-use configurations for common self-healing scenarios. Copy one, edit it
 
 ```bash
 # Install the agent
-curl -sSfL https://raw.githubusercontent.com/uptimy/uptimy-agent/main/scripts/install.sh | sudo bash
+curl -sSfL https://raw.githubusercontent.com/uptimy/uptimy-agent/master/scripts/install.sh | sudo bash
 
 # Copy an example as your starting config
 sudo cp examples/web-service-monitoring.yaml /etc/uptimy/config.yaml
@@ -61,7 +61,7 @@ sudo systemctl enable --now uptimy-agent
 ## Tips
 
 - **Use `${ENV_VAR}` in YAML** for secrets like webhook URLs and tokens
-- **Set `max_repairs_per_hour`** to prevent repair loops — start low (2-3), increase as you gain confidence
+- **Set `max_repairs_per_hour`** to prevent repair loops - start low (2-3), increase as you gain confidence
 - **Use `on_failure_only: true`** on steps that should only run if a previous step failed (e.g. rollback, escalation alerts)
 - **Combine recipes:** start with a lightweight fix (restart), then escalate (rollback/scale), then alert (webhook)
 - **Test first:** run the agent with `uptimy-agent run --config your-config.yaml` in the foreground to verify checks pass before deploying as a service

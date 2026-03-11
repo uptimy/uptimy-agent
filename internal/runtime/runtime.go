@@ -1,4 +1,4 @@
-// Package runtime provides the Runtime supervisor that initialises,
+// Package runtime provides the Runtime supervisor that initializes,
 // wires, and manages the lifecycle of all agent components.
 package runtime
 
@@ -50,13 +50,13 @@ func New(cfg *config.Config) (*Runtime, error) {
 	// Logging
 	logger, err := logging.NewLogger(cfg.Logging.Level, cfg.Logging.Format)
 	if err != nil {
-		return nil, fmt.Errorf("initialising logger: %w", err)
+		return nil, fmt.Errorf("initializing logger: %w", err)
 	}
 
 	// Storage
 	store, err := storage.NewBoltStore(cfg.Storage.Path)
 	if err != nil {
-		return nil, fmt.Errorf("initialising storage: %w", err)
+		return nil, fmt.Errorf("initializing storage: %w", err)
 	}
 
 	// Metrics & Telemetry
@@ -72,7 +72,7 @@ func New(cfg *config.Config) (*Runtime, error) {
 	checkRegistry := checks.NewRegistry()
 	scheduler := checks.NewScheduler(checkRegistry, checkResults, cfg.Agent.WorkerPoolSize, logger)
 	if err := checkers.BuildFromConfig(cfg.Checks, checkRegistry, scheduler, logger); err != nil {
-		store.Close()
+		_ = store.Close()
 		return nil, fmt.Errorf("building checks from config: %w", err)
 	}
 
@@ -122,7 +122,7 @@ func New(cfg *config.Config) (*Runtime, error) {
 
 	for _, a := range builtinActions {
 		if err := actionRegistry.Register(a); err != nil {
-			store.Close()
+			_ = store.Close()
 			return nil, fmt.Errorf("registering action %q: %w", a.Name(), err)
 		}
 	}
@@ -162,7 +162,7 @@ func New(cfg *config.Config) (*Runtime, error) {
 	}, nil
 }
 
-// Start launches all agent goroutines. Blocks until ctx is cancelled
+// Start launches all agent goroutines. Blocks until ctx is canceled
 // or a fatal error occurs.
 func (r *Runtime) Start(ctx context.Context) error {
 	r.Logger.Infow("starting uptimy agent",

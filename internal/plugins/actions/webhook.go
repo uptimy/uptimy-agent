@@ -20,6 +20,7 @@ type WebhookAction struct {
 	client *http.Client
 }
 
+// NewWebhookAction creates a WebhookAction.
 func NewWebhookAction(logger *zap.SugaredLogger) *WebhookAction {
 	return &WebhookAction{
 		logger: logger,
@@ -35,8 +36,10 @@ func NewWebhookAction(logger *zap.SugaredLogger) *WebhookAction {
 	}
 }
 
+// Name returns the action name.
 func (a *WebhookAction) Name() string { return "webhook" }
 
+// Execute runs the webhook action.
 func (a *WebhookAction) Execute(ctx context.Context, params map[string]string) error {
 	webhookURL := params["url"]
 	if webhookURL == "" {
@@ -97,7 +100,7 @@ func (a *WebhookAction) Execute(ctx context.Context, params map[string]string) e
 	// Add custom headers from params
 	if headers, ok := params["headers"]; ok {
 		var headerMap map[string]string
-		if err := json.Unmarshal([]byte(headers), &headerMap); err == nil {
+		if unmarshalErr := json.Unmarshal([]byte(headers), &headerMap); unmarshalErr == nil {
 			for k, v := range headerMap {
 				req.Header.Set(k, v)
 			}
@@ -108,7 +111,7 @@ func (a *WebhookAction) Execute(ctx context.Context, params map[string]string) e
 	if err != nil {
 		return fmt.Errorf("webhook: request failed: %w", err)
 	}
-	defer resp.Body.Close()
+	defer resp.Body.Close() //nolint:errcheck // best-effort close of HTTP response body
 
 	// Read response
 	respBody, _ := io.ReadAll(io.LimitReader(resp.Body, 1024))

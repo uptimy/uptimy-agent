@@ -6,6 +6,7 @@ import "time"
 // Status represents the lifecycle state of an incident.
 type Status = string
 
+// Status values.
 const (
 	StatusOpen      Status = "open"
 	StatusRepairing Status = "repairing"
@@ -29,6 +30,7 @@ type Incident struct {
 // EventType describes the kind of incident lifecycle change.
 type EventType string
 
+// EventType values.
 const (
 	EventOpened    EventType = "opened"
 	EventUpdated   EventType = "updated"

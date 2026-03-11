@@ -137,10 +137,7 @@ func TestManager_ResolvesOnHealthy(t *testing.T) {
 
 	// Wait until the incident is created before sending healthy.
 	waitDeadline := time.After(2 * time.Second)
-	for {
-		if mgr.ActiveCount() > 0 {
-			break
-		}
+	for mgr.ActiveCount() == 0 {
 		select {
 		case <-waitDeadline:
 			t.Fatal("timed out waiting for incident creation")

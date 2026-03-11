@@ -14,12 +14,15 @@ type HealthcheckAction struct {
 	logger   *zap.SugaredLogger
 }
 
+// NewHealthcheckAction creates a HealthcheckAction.
 func NewHealthcheckAction(registry *checks.Registry, logger *zap.SugaredLogger) *HealthcheckAction {
 	return &HealthcheckAction{registry: registry, logger: logger}
 }
 
+// Name returns the action name.
 func (a *HealthcheckAction) Name() string { return "healthcheck" }
 
+// Execute runs the healthcheck action.
 func (a *HealthcheckAction) Execute(ctx context.Context, params map[string]string) error {
 	checkName, ok := params["check"]
 	if !ok {

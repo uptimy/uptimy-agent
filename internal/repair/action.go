@@ -1,4 +1,4 @@
-// Package repair provides the repair engine — recipe execution,
+// Package repair provides the repair engine - recipe execution,
 // guardrails, and deterministic action system for the Uptimy Agent.
 package repair
 

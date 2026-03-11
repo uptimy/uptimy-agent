@@ -6,11 +6,11 @@
 #    sudo bash uninstall.sh
 #
 #  Environment variables:
-#    UPTIMY_INSTALL    — binary directory   (default: /usr/local/bin)
-#    UPTIMY_CONFIG     — config directory   (default: /etc/uptimy)
-#    UPTIMY_DATA       — data directory     (default: /var/lib/uptimy)
-#    UPTIMY_USER       — service user       (default: uptimy)
-#    UPTIMY_KEEP_DATA  — keep data dir      (set to 1 to preserve state)
+#    UPTIMY_INSTALL    - binary directory   (default: /usr/local/bin)
+#    UPTIMY_CONFIG     - config directory   (default: /etc/uptimy)
+#    UPTIMY_DATA       - data directory     (default: /var/lib/uptimy)
+#    UPTIMY_USER       - service user       (default: uptimy)
+#    UPTIMY_KEEP_DATA  - keep data dir      (set to 1 to preserve state)
 # ──────────────────────────────────────────────────────────────────────
 set -euo pipefail
 

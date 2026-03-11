@@ -52,13 +52,14 @@ func (c *CertificateCheck) Run(ctx context.Context) checks.CheckResult {
 	var err error
 	var metadata map[string]string
 
-	if c.certURL != "" {
+	switch {
+	case c.certURL != "":
 		cert, err = c.getCertFromURL(ctx)
 		metadata = map[string]string{"url": c.certURL}
-	} else if c.certPath != "" {
+	case c.certPath != "":
 		cert, err = c.getCertFromFile()
 		metadata = map[string]string{"path": c.certPath}
-	} else {
+	default:
 		return checks.CheckResult{
 			Name:      c.name,
 			Service:   c.service,
@@ -126,7 +127,7 @@ func (c *CertificateCheck) getCertFromURL(ctx context.Context) (*x509.Certificat
 	if err != nil {
 		return nil, fmt.Errorf("failed to connect to %s: %w", c.certURL, err)
 	}
-	defer conn.Close()
+	defer conn.Close() //nolint:errcheck // best-effort close of TLS connection
 
 	tlsConn, ok := conn.(*tls.Conn)
 	if !ok {

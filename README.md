@@ -4,26 +4,26 @@ A self-healing infrastructure watchdog that monitors, detects, and automatically
 
 ## Overview
 
-The Uptimy Agent runs on infrastructure nodes and continuously monitors the health of services. When failures are detected, it creates incidents and executes predefined repair workflows — no human intervention required for known failure modes.
+The Uptimy Agent runs on infrastructure nodes and continuously monitors the health of services. When failures are detected, it creates incidents and executes predefined repair workflows - no human intervention required for known failure modes.
 
 **Core loop:** `monitor → detect → repair → verify`
 
 ## Features
 
-- **Health Checks** — HTTP, TCP, CPU, memory, disk, process, and certificate checks
-- **Incident Management** — Automatic deduplication, lifecycle tracking, auto-resolution
-- **Deterministic Repairs** — Multi-step recipes with retries, branching, and verification
-- **Safety Guardrails** — Rate limiting, cooldowns, allowed/forbidden action enforcement
-- **Kubernetes Integration** — Watch cluster events (CrashLoopBackOff, PodFailed, NodeNotReady)
-- **Telemetry** — Prometheus metrics, structured JSON logs, control plane streaming (optional)
-- **Offline Capable** — Operates fully standalone; control plane connection is optional
-- **Env-Var Expansion** — Use `${VAR}` in YAML config for secrets injection
+- **Health Checks** - HTTP, TCP, CPU, memory, disk, process, and certificate checks
+- **Incident Management** - Automatic deduplication, lifecycle tracking, auto-resolution
+- **Deterministic Repairs** - Multi-step recipes with retries, branching, and verification
+- **Safety Guardrails** - Rate limiting, cooldowns, allowed/forbidden action enforcement
+- **Kubernetes Integration** - Watch cluster events (CrashLoopBackOff, PodFailed, NodeNotReady)
+- **Telemetry** - Prometheus metrics, structured JSON logs, control plane streaming (optional)
+- **Offline Capable** - Operates fully standalone; control plane connection is optional
+- **Env-Var Expansion** - Use `${VAR}` in YAML config for secrets injection
 
 ## Quick Start
 
 ```bash
 # Install (Linux/macOS)
-curl -sSfL https://raw.githubusercontent.com/uptimy/uptimy-agent/main/scripts/install.sh | sudo bash
+curl -sSfL https://raw.githubusercontent.com/uptimy/uptimy-agent/master/scripts/install.sh | sudo bash
 
 # Edit your config
 sudo vi /etc/uptimy/config.yaml
@@ -40,7 +40,7 @@ uptimy-agent run --config /etc/uptimy/config.yaml  # Manual / macOS
 The install script downloads the correct binary, creates a config, and sets up a systemd service:
 
 ```bash
-curl -sSfL https://raw.githubusercontent.com/uptimy/uptimy-agent/main/scripts/install.sh | sudo bash
+curl -sSfL https://raw.githubusercontent.com/uptimy/uptimy-agent/master/scripts/install.sh | sudo bash
 ```
 
 **Customise with environment variables:**
@@ -195,34 +195,34 @@ sudo systemctl restart uptimy-agent
 ## Project Structure
 
 ```
-cmd/agent/            — CLI entrypoint
+cmd/agent/            - CLI entrypoint
 internal/
-  config/             — Configuration loading and validation
-  checks/             — Check engine, scheduler, registry
-  incidents/          — Incident manager, lifecycle, deduplication
-  repair/             — Repair engine, action registry, guardrails
-  plugins/            — Extensible check and repair plugins
-    checkers/         — Check implementations (HTTP, TCP, CPU, disk, …)
-    actions/          — Repair action implementations (restart, rollback, …)
-  telemetry/          — Metrics, telemetry buffer, exporter
-  kubernetes/         — Kubernetes event watcher
-  storage/            — Local state storage (BoltDB)
-  runtime/            — Runtime supervisor, lifecycle management
-  logging/            — Structured logging (zap)
-  version/            — Build version info
-  metrics/            — Prometheus metrics helpers
+  config/             - Configuration loading and validation
+  checks/             - Check engine, scheduler, registry
+  incidents/          - Incident manager, lifecycle, deduplication
+  repair/             - Repair engine, action registry, guardrails
+  plugins/            - Extensible check and repair plugins
+    checkers/         - Check implementations (HTTP, TCP, CPU, disk, …)
+    actions/          - Repair action implementations (restart, rollback, …)
+  telemetry/          - Metrics, telemetry buffer, exporter
+  kubernetes/         - Kubernetes event watcher
+  storage/            - Local state storage (BoltDB)
+  runtime/            - Runtime supervisor, lifecycle management
+  logging/            - Structured logging (zap)
+  version/            - Build version info
+  metrics/            - Prometheus metrics helpers
 pkg/
-  client/             — gRPC control plane client
-    proto/            — Protobuf service definitions
-configs/              — Default configuration files
-examples/             — Example configs for common scenarios
+  client/             - gRPC control plane client
+    proto/            - Protobuf service definitions
+configs/              - Default configuration files
+examples/             - Example configs for common scenarios
 deploy/
-  systemd/            — systemd unit file
-  kubernetes/         — DaemonSet manifest with RBAC
-docs/                 — Architecture and implementation docs
+  systemd/            - systemd unit file
+  kubernetes/         - DaemonSet manifest with RBAC
+docs/                 - Architecture and implementation docs
 scripts/
-  install.sh          — One-line installer script
-  uninstall.sh        — Uninstaller script
+  install.sh          - One-line installer script
+  uninstall.sh        - Uninstaller script
 ```
 
 ## Development
@@ -238,4 +238,4 @@ make dist       # Build release tarballs for all platforms
 
 ## License
 
-Apache License 2.0 — see [LICENSE](LICENSE).
+Apache License 2.0 - see [LICENSE](LICENSE).

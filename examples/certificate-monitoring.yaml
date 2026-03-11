@@ -20,7 +20,7 @@ storage:
   path: /var/lib/uptimy/state.db
 
 checks:
-  # Production API — alert 30 days before expiry
+  # Production API - alert 30 days before expiry
   - type: certificate
     name: api-cert
     service: api

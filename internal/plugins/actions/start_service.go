@@ -14,12 +14,15 @@ type StartServiceAction struct {
 	logger *zap.SugaredLogger
 }
 
+// NewStartServiceAction creates a StartServiceAction.
 func NewStartServiceAction(logger *zap.SugaredLogger) *StartServiceAction {
 	return &StartServiceAction{logger: logger}
 }
 
+// Name returns the action name.
 func (a *StartServiceAction) Name() string { return "start_service" }
 
+// Execute runs the start service action.
 func (a *StartServiceAction) Execute(ctx context.Context, params map[string]string) error {
 	service := params["service"]
 	if service == "" {

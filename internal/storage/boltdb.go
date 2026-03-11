@@ -26,11 +26,11 @@ type BoltStore struct {
 // NewBoltStore opens or creates a BoltDB database at the given path.
 func NewBoltStore(path string) (*BoltStore, error) {
 	// Ensure parent directories exist.
-	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		return nil, fmt.Errorf("creating storage directory: %w", err)
 	}
 
-	db, err := bolt.Open(path, 0600, &bolt.Options{Timeout: 5 * time.Second})
+	db, err := bolt.Open(path, 0o600, &bolt.Options{Timeout: 5 * time.Second})
 	if err != nil {
 		return nil, fmt.Errorf("opening bolt database at %s: %w", path, err)
 	}
@@ -38,14 +38,14 @@ func NewBoltStore(path string) (*BoltStore, error) {
 	// Ensure buckets exist.
 	err = db.Update(func(tx *bolt.Tx) error {
 		for _, b := range [][]byte{bucketIncidents, bucketRepairs, bucketConfigCache} {
-			if _, err := tx.CreateBucketIfNotExists(b); err != nil {
-				return fmt.Errorf("creating bucket %s: %w", b, err)
+			if _, createErr := tx.CreateBucketIfNotExists(b); createErr != nil {
+				return fmt.Errorf("creating bucket %s: %w", b, createErr)
 			}
 		}
 		return nil
 	})
 	if err != nil {
-		db.Close()
+		_ = db.Close()
 		return nil, err
 	}
 

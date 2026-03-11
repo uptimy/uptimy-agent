@@ -46,11 +46,12 @@ func (c *ProcessCheck) Run(ctx context.Context) checks.CheckResult {
 	var err error
 	var metadata map[string]string
 
-	if c.serviceName != "" {
-		status, err, metadata = c.checkSystemdService(ctx)
-	} else if c.processName != "" {
-		status, err, metadata = c.checkProcessByName(ctx)
-	} else {
+	switch {
+	case c.serviceName != "":
+		status, metadata, err = c.checkSystemdService(ctx)
+	case c.processName != "":
+		status, metadata, err = c.checkProcessByName(ctx)
+	default:
 		return checks.CheckResult{
 			Name:      c.name,
 			Service:   c.service,
@@ -73,12 +74,12 @@ func (c *ProcessCheck) Run(ctx context.Context) checks.CheckResult {
 }
 
 // checkSystemdService checks if a systemd service is active.
-func (c *ProcessCheck) checkSystemdService(ctx context.Context) (checks.CheckStatus, error, map[string]string) {
+func (c *ProcessCheck) checkSystemdService(ctx context.Context) (checks.CheckStatus, map[string]string, error) {
 	metadata := map[string]string{"service_name": c.serviceName}
 
 	// Validate service name to prevent command injection
 	if err := validateServiceName(c.serviceName); err != nil {
-		return checks.StatusFailed, fmt.Errorf("invalid service name: %w", err), metadata
+		return checks.StatusFailed, metadata, fmt.Errorf("invalid service name: %w", err)
 	}
 
 	cmd := exec.CommandContext(ctx, "systemctl", "is-active", c.serviceName)
@@ -88,23 +89,23 @@ func (c *ProcessCheck) checkSystemdService(ctx context.Context) (checks.CheckSta
 	metadata["systemctl_status"] = status
 
 	if err != nil {
-		return checks.StatusFailed, fmt.Errorf("service %s is not active: %s", c.serviceName, status), metadata
+		return checks.StatusFailed, metadata, fmt.Errorf("service %s is not active: %s", c.serviceName, status)
 	}
 
 	if status == "active" {
-		return checks.StatusHealthy, nil, metadata
+		return checks.StatusHealthy, metadata, nil
 	}
 
-	return checks.StatusFailed, fmt.Errorf("service %s is %s", c.serviceName, status), metadata
+	return checks.StatusFailed, metadata, fmt.Errorf("service %s is %s", c.serviceName, status)
 }
 
 // checkProcessByName checks if a process with the given name is running.
-func (c *ProcessCheck) checkProcessByName(ctx context.Context) (checks.CheckStatus, error, map[string]string) {
+func (c *ProcessCheck) checkProcessByName(ctx context.Context) (checks.CheckStatus, map[string]string, error) {
 	metadata := map[string]string{"process_name": c.processName}
 
 	procs, err := process.ProcessesWithContext(ctx)
 	if err != nil {
-		return checks.StatusFailed, fmt.Errorf("failed to list processes: %w", err), metadata
+		return checks.StatusFailed, metadata, fmt.Errorf("failed to list processes: %w", err)
 	}
 
 	for _, p := range procs {
@@ -114,11 +115,11 @@ func (c *ProcessCheck) checkProcessByName(ctx context.Context) (checks.CheckStat
 		}
 		if strings.Contains(strings.ToLower(name), strings.ToLower(c.processName)) {
 			metadata["pid"] = fmt.Sprintf("%d", p.Pid)
-			return checks.StatusHealthy, nil, metadata
+			return checks.StatusHealthy, metadata, nil
 		}
 	}
 
-	return checks.StatusFailed, fmt.Errorf("process %s not found", c.processName), metadata
+	return checks.StatusFailed, metadata, fmt.Errorf("process %s not found", c.processName)
 }
 
 // validateServiceName rejects suspicious service names.

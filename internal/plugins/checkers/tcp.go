@@ -49,7 +49,7 @@ func (c *TCPCheck) Run(ctx context.Context) checks.CheckResult {
 			Metadata:  map[string]string{"address": c.address},
 		}
 	}
-	conn.Close()
+	_ = conn.Close()
 
 	return checks.CheckResult{
 		Name:      c.name,

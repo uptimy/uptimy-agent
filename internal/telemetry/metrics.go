@@ -4,6 +4,7 @@ package telemetry
 
 import (
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/collectors"
 )
 
 // Metrics holds all Prometheus metric instruments for the agent.
@@ -26,8 +27,8 @@ type Metrics struct {
 func NewMetrics() *Metrics {
 	reg := prometheus.NewRegistry()
 	// Include standard Go and process collectors.
-	reg.MustRegister(prometheus.NewGoCollector())
-	reg.MustRegister(prometheus.NewProcessCollector(prometheus.ProcessCollectorOpts{}))
+	reg.MustRegister(collectors.NewGoCollector())
+	reg.MustRegister(collectors.NewProcessCollector(collectors.ProcessCollectorOpts{}))
 
 	agentUptime := prometheus.NewCounter(prometheus.CounterOpts{
 		Name: "uptimy_agent_uptime_seconds_total",

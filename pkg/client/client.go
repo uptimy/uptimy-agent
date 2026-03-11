@@ -111,7 +111,7 @@ func (c *ControlPlaneClient) AuthContext(ctx context.Context) context.Context {
 }
 
 // RunWithReconnect connects and stays connected, retrying with exponential
-// backoff. It blocks until ctx is cancelled.
+// backoff. It blocks until ctx is canceled.
 func (c *ControlPlaneClient) RunWithReconnect(ctx context.Context) {
 	backoff := 1 * time.Second
 	maxBackoff := 60 * time.Second
@@ -140,12 +140,11 @@ func (c *ControlPlaneClient) RunWithReconnect(ctx context.Context) {
 			continue
 		}
 
-		// Connected — reset backoff and wait for context cancellation
+		// Connected - wait for context cancellation
 		// or connection error (in future: run bidirectional stream here).
-		backoff = 1 * time.Second
 		c.logger.Infow("control plane connection established, waiting for events")
 
-		// Block until context is cancelled. In a full implementation,
+		// Block until context is canceled. In a full implementation,
 		// this would run the bidirectional streaming RPC.
 		<-ctx.Done()
 		return

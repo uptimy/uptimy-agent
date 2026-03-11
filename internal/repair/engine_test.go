@@ -55,7 +55,9 @@ func TestEngine_ExecutesRecipe(t *testing.T) {
 
 	actionRegistry := repair.NewActionRegistry()
 	action := &successAction{name: "test_success"}
-	actionRegistry.Register(action)
+	if err := actionRegistry.Register(action); err != nil {
+		t.Fatalf("register: %v", err)
+	}
 
 	guardrails := repair.NewGuardrails()
 	guardrails.AllowAction("test_success")
@@ -104,7 +106,9 @@ func TestEngine_RespectsGuardrails(t *testing.T) {
 
 	actionRegistry := repair.NewActionRegistry()
 	action := &successAction{name: "test_success"}
-	actionRegistry.Register(action)
+	if err := actionRegistry.Register(action); err != nil {
+		t.Fatalf("register: %v", err)
+	}
 
 	guardrails := repair.NewGuardrails()
 	guardrails.AllowAction("test_success")
@@ -167,7 +171,9 @@ func TestEngine_HandlesActionFailure(t *testing.T) {
 
 	actionRegistry := repair.NewActionRegistry()
 	action := &failAction{name: "test_fail"}
-	actionRegistry.Register(action)
+	if err := actionRegistry.Register(action); err != nil {
+		t.Fatalf("register: %v", err)
+	}
 
 	guardrails := repair.NewGuardrails()
 	guardrails.AllowAction("test_fail")

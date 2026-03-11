@@ -71,7 +71,7 @@ func buildConfig() (*rest.Config, error) {
 	return clientcmd.NewNonInteractiveDeferredLoadingClientConfig(rules, overrides).ClientConfig()
 }
 
-// Run starts watching Kubernetes events. Blocks until ctx is cancelled.
+// Run starts watching Kubernetes events. Blocks until ctx is canceled.
 func (w *Watcher) Run(ctx context.Context) {
 	w.logger.Infow("starting kubernetes watcher", "namespace", w.namespaceDisplay())
 

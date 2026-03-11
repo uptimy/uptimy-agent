@@ -38,7 +38,7 @@ checks:
     interval: 120s
     timeout: 10s
 
-  # High CPU — may indicate runaway process
+  # High CPU - may indicate runaway process
   - type: cpu
     name: high-cpu
     service: system
@@ -100,7 +100,7 @@ recipes:
       - action: healthcheck
         check: data-disk
 
-  # High resource usage — notify (don't auto-kill)
+  # High resource usage - notify (don't auto-kill)
   - name: resource-alert
     steps:
       - action: webhook

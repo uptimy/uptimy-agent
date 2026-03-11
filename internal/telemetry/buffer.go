@@ -92,7 +92,7 @@ func (rb *RingBuffer) Snapshot() []Event {
 	return events
 }
 
-// MarshalJSON serialises all buffered events as a JSON array without
+// MarshalJSON serializes all buffered events as a JSON array without
 // removing them from the buffer.
 func (rb *RingBuffer) MarshalJSON() ([]byte, error) {
 	events := rb.Snapshot()

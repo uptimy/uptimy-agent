@@ -17,6 +17,7 @@ type ClearTempAction struct {
 	allowedPaths []string
 }
 
+// NewClearTempAction creates a ClearTempAction.
 func NewClearTempAction(logger *zap.SugaredLogger) *ClearTempAction {
 	return &ClearTempAction{
 		logger: logger,
@@ -26,8 +27,10 @@ func NewClearTempAction(logger *zap.SugaredLogger) *ClearTempAction {
 	}
 }
 
+// Name returns the action name.
 func (a *ClearTempAction) Name() string { return "clear_temp" }
 
+// Execute runs the clear temp action.
 func (a *ClearTempAction) Execute(ctx context.Context, params map[string]string) error {
 	path := params["path"]
 	if path == "" {

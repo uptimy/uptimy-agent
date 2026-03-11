@@ -18,6 +18,7 @@ type RotateLogsAction struct {
 	allowedPaths []string
 }
 
+// NewRotateLogsAction creates a RotateLogsAction.
 func NewRotateLogsAction(logger *zap.SugaredLogger) *RotateLogsAction {
 	return &RotateLogsAction{
 		logger: logger,
@@ -27,8 +28,10 @@ func NewRotateLogsAction(logger *zap.SugaredLogger) *RotateLogsAction {
 	}
 }
 
+// Name returns the action name.
 func (a *RotateLogsAction) Name() string { return "rotate_logs" }
 
+// Execute runs the rotate logs action.
 func (a *RotateLogsAction) Execute(ctx context.Context, params map[string]string) error {
 	path := params["path"]
 	if path == "" {
@@ -66,12 +69,14 @@ func (a *RotateLogsAction) rotateWithLogrotate(ctx context.Context, path string)
 	if err != nil {
 		return fmt.Errorf("failed to create temp config: %w", err)
 	}
-	defer os.Remove(tmpFile.Name())
+	defer os.Remove(tmpFile.Name()) //nolint:errcheck // best-effort temp file cleanup
 
-	if _, err := tmpFile.WriteString(config); err != nil {
-		return fmt.Errorf("failed to write config: %w", err)
+	if _, writeErr := tmpFile.WriteString(config); writeErr != nil {
+		return fmt.Errorf("failed to write config: %w", writeErr)
 	}
-	tmpFile.Close()
+	if err = tmpFile.Close(); err != nil {
+		return fmt.Errorf("failed to close temp config: %w", err)
+	}
 
 	cmd := exec.CommandContext(ctx, "logrotate", "-f", tmpFile.Name())
 	output, err := cmd.CombinedOutput()
@@ -107,7 +112,7 @@ func (a *RotateLogsAction) rotateBySafeTruncation(ctx context.Context, path stri
 
 	// Create backup
 	backupPath := path + "." + time.Now().Format("20060102-150405")
-	if err := os.Rename(path, backupPath); err != nil {
+	if renameErr := os.Rename(path, backupPath); renameErr != nil {
 		// If rename fails, try truncation
 		return a.truncateFile(path, maxSize)
 	}
@@ -116,10 +121,10 @@ func (a *RotateLogsAction) rotateBySafeTruncation(ctx context.Context, path stri
 	f, err := os.Create(path)
 	if err != nil {
 		// Restore backup if we can't create new file
-		os.Rename(backupPath, path)
+		_ = os.Rename(backupPath, path)
 		return fmt.Errorf("failed to create new log file: %w", err)
 	}
-	f.Close()
+	_ = f.Close()
 
 	a.logger.Infow("logs rotated by backup", "path", path, "backup", backupPath)
 	return nil
@@ -127,11 +132,11 @@ func (a *RotateLogsAction) rotateBySafeTruncation(ctx context.Context, path stri
 
 // truncateFile truncates a file keeping the last maxSize bytes.
 func (a *RotateLogsAction) truncateFile(path string, maxSize int64) error {
-	f, err := os.OpenFile(path, os.O_RDWR, 0644)
+	f, err := os.OpenFile(path, os.O_RDWR, 0o644)
 	if err != nil {
 		return fmt.Errorf("failed to open file: %w", err)
 	}
-	defer f.Close()
+	defer f.Close() //nolint:errcheck // best-effort close on read-write file
 
 	if err := f.Truncate(maxSize); err != nil {
 		return fmt.Errorf("failed to truncate file: %w", err)
@@ -163,13 +168,14 @@ func parseSize(s string) (int64, error) {
 	s = strings.ToUpper(s)
 
 	multiplier := int64(1)
-	if strings.HasSuffix(s, "KB") {
+	switch {
+	case strings.HasSuffix(s, "KB"):
 		multiplier = 1024
 		s = strings.TrimSuffix(s, "KB")
-	} else if strings.HasSuffix(s, "MB") {
+	case strings.HasSuffix(s, "MB"):
 		multiplier = 1024 * 1024
 		s = strings.TrimSuffix(s, "MB")
-	} else if strings.HasSuffix(s, "GB") {
+	case strings.HasSuffix(s, "GB"):
 		multiplier = 1024 * 1024 * 1024
 		s = strings.TrimSuffix(s, "GB")
 	}

@@ -37,10 +37,22 @@ jobs:
       - name: Build release tarballs
         run: make dist VERSION="${VERSION}"
 
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
       - name: Build Docker image
         run: |
           make docker-build VERSION="${VERSION}"
-          docker tag uptimy/agent:"${VERSION}" uptimy/agent:latest
+          docker tag uptimy/agent:"${VERSION}" uptimy/uptimy-agent:"${VERSION}"
+          docker tag uptimy/agent:"${VERSION}" uptimy/uptimy-agent:latest
+
+      - name: Push Docker image
+        run: |
+          docker push uptimy/uptimy-agent:"${VERSION}"
+          docker push uptimy/uptimy-agent:latest
 
       - name: Prepare release assets
         run: |
@@ -64,15 +76,15 @@ jobs:
             ## Quick Install
 
             ```bash
-            curl -sSfL https://raw.githubusercontent.com/uptimy/uptimy-agent/main/scripts/install.sh | sudo bash
+            curl -sSfL https://raw.githubusercontent.com/uptimy/uptimy-agent/master/scripts/install.sh | sudo bash
             ```
 
             Or install a specific version:
             ```bash
-            UPTIMY_VERSION=${{ env.VERSION }} curl -sSfL https://raw.githubusercontent.com/uptimy/uptimy-agent/main/scripts/install.sh | sudo bash
+            UPTIMY_VERSION=${{ env.VERSION }} curl -sSfL https://raw.githubusercontent.com/uptimy/uptimy-agent/master/scripts/install.sh | sudo bash
             ```
 
-            See [examples/](https://github.com/uptimy/uptimy-agent/tree/main/examples) for common self-healing configurations.
+            See [examples/](https://github.com/uptimy/uptimy-agent/tree/master/examples) for common self-healing configurations.
           files: |
             dist/*.tar.gz
             dist/checksums.txt

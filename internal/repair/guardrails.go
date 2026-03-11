@@ -58,10 +58,10 @@ func NewGuardrails() *Guardrails {
 }
 
 // SetMaxRepairsPerHour sets the rate limit for a repair rule.
-func (g *Guardrails) SetMaxRepairsPerHour(rule string, max int) {
+func (g *Guardrails) SetMaxRepairsPerHour(rule string, limit int) {
 	g.mu.Lock()
 	defer g.mu.Unlock()
-	g.maxRepairs[rule] = max
+	g.maxRepairs[rule] = limit
 }
 
 // SetCooldown sets the minimum duration between executions of an action.
@@ -114,9 +114,9 @@ func (g *Guardrails) CheckRateLimit(rule string) error {
 	g.mu.Lock()
 	defer g.mu.Unlock()
 
-	max, ok := g.maxRepairs[rule]
+	limit, ok := g.maxRepairs[rule]
 	if !ok {
-		// No limit configured — allow.
+		// No limit configured - allow.
 		return nil
 	}
 
@@ -131,9 +131,9 @@ func (g *Guardrails) CheckRateLimit(rule string) error {
 	}
 	g.repairHistory[rule] = pruned
 
-	if len(pruned) >= max {
+	if len(pruned) >= limit {
 		return fmt.Errorf("rule %q rate limit exceeded (%d/%d repairs in the last hour)",
-			rule, len(pruned), max)
+			rule, len(pruned), limit)
 	}
 
 	return nil

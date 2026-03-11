@@ -43,7 +43,7 @@ func (s *Scheduler) AddCheck(c Check, interval time.Duration) {
 	s.checks = append(s.checks, scheduledCheck{check: c, interval: interval})
 }
 
-// Start begins executing all scheduled checks. It blocks until ctx is cancelled.
+// Start begins executing all scheduled checks. It blocks until ctx is canceled.
 // Calling Start more than once without Stop will stop the previous run first.
 func (s *Scheduler) Start(ctx context.Context) {
 	// Ensure idempotency: stop any previous run before starting a new one.

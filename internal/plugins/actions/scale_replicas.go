@@ -16,12 +16,15 @@ type ScaleReplicasAction struct {
 	logger *zap.SugaredLogger
 }
 
+// NewScaleReplicasAction creates a ScaleReplicasAction.
 func NewScaleReplicasAction(client k8sclient.Interface, logger *zap.SugaredLogger) *ScaleReplicasAction {
 	return &ScaleReplicasAction{client: client, logger: logger}
 }
 
+// Name returns the action name.
 func (a *ScaleReplicasAction) Name() string { return "scale_replicas" }
 
+// Execute runs the scale replicas action.
 func (a *ScaleReplicasAction) Execute(ctx context.Context, params map[string]string) error {
 	if a.client == nil {
 		return fmt.Errorf("scale_replicas: kubernetes is not available")

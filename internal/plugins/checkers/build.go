@@ -24,7 +24,8 @@ func BuildFromConfig(
 	scheduler *checks.Scheduler,
 	logger *zap.SugaredLogger,
 ) error {
-	for _, cc := range checkConfigs {
+	for i := range checkConfigs {
+		cc := &checkConfigs[i]
 		var c checks.Check
 		timeout := cc.Timeout
 		if timeout == 0 {

@@ -166,7 +166,7 @@ func (e *Engine) handleIncident(ctx context.Context, inc *incidents.Incident) {
 
 	// Record the repair.
 	e.guardrails.RecordRepair(rule.Rule)
-	e.persistResult(result, rule)
+	e.persistResult(&result, rule)
 
 	if result.Status == RecipeSuccess {
 		e.logger.Infow("repair recipe succeeded",
@@ -304,7 +304,7 @@ func (e *Engine) executeStep(ctx context.Context, step RecipeStep) StepResult {
 	return sr
 }
 
-func (e *Engine) persistResult(result RecipeResult, rule config.RepairRuleConfig) {
+func (e *Engine) persistResult(result *RecipeResult, rule config.RepairRuleConfig) {
 	errMsg := ""
 	if result.Error != nil {
 		errMsg = result.Error.Error()

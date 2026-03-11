@@ -5,6 +5,7 @@ import "time"
 // RecipeStatus represents the state of a recipe execution.
 type RecipeStatus string
 
+// RecipeStatus values.
 const (
 	RecipePending RecipeStatus = "pending"
 	RecipeRunning RecipeStatus = "running"

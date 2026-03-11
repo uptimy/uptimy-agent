@@ -97,6 +97,7 @@ type StorageConfig struct {
 // KubernetesEnabled represents the tri-state for Kubernetes integration.
 type KubernetesEnabled string
 
+// KubernetesEnabled values.
 const (
 	KubeAuto     KubernetesEnabled = "auto"
 	KubeEnabled  KubernetesEnabled = "true"
@@ -163,7 +164,8 @@ func (c *Config) Validate() error {
 
 	// Index check names for cross-reference validation.
 	checkNames := make(map[string]bool, len(c.Checks))
-	for _, ch := range c.Checks {
+	for i := range c.Checks {
+		ch := &c.Checks[i]
 		if ch.Name == "" {
 			return fmt.Errorf("check name must not be empty")
 		}

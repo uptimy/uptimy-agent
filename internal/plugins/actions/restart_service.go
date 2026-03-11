@@ -14,12 +14,15 @@ type RestartServiceAction struct {
 	logger *zap.SugaredLogger
 }
 
+// NewRestartServiceAction creates a RestartServiceAction.
 func NewRestartServiceAction(logger *zap.SugaredLogger) *RestartServiceAction {
 	return &RestartServiceAction{logger: logger}
 }
 
+// Name returns the action name.
 func (a *RestartServiceAction) Name() string { return "restart_service" }
 
+// Execute runs the restart service action.
 func (a *RestartServiceAction) Execute(ctx context.Context, params map[string]string) error {
 	service := params["service"]
 	if service == "" {

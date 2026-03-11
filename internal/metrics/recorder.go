@@ -18,7 +18,7 @@ func NewRecorder(m *telemetry.Metrics) *Recorder {
 }
 
 // RecordCheckResult increments check counters.
-func (r *Recorder) RecordCheckResult(result checks.CheckResult) {
+func (r *Recorder) RecordCheckResult(result *checks.CheckResult) {
 	r.m.ChecksTotal.Inc()
 	if result.Status == checks.StatusFailed {
 		r.m.ChecksFailed.Inc()

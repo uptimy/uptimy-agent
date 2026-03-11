@@ -23,7 +23,7 @@ var (
 func main() {
 	rootCmd := &cobra.Command{
 		Use:   "uptimy-agent",
-		Short: "Uptimy Agent — self-healing infrastructure agent",
+		Short: "Uptimy Agent - self-healing infrastructure agent",
 		Long: `Uptimy Agent is an open-source self-healing agent that detects
 infrastructure issues and applies deterministic reparations.`,
 	}
@@ -60,7 +60,7 @@ func newRunCmd() *cobra.Command {
 
 			rt, err := runtime.New(cfg)
 			if err != nil {
-				return fmt.Errorf("initialising runtime: %w", err)
+				return fmt.Errorf("initializing runtime: %w", err)
 			}
 
 			// Set up signal handling for graceful shutdown.
@@ -76,7 +76,7 @@ func newRunCmd() *cobra.Command {
 				cancel()
 			}()
 
-			// Run the agent (blocks until context is cancelled or error).
+			// Run the agent (blocks until context is canceled or error).
 			errCh := make(chan error, 1)
 			go func() {
 				errCh <- rt.Start(ctx)
@@ -126,11 +126,11 @@ func newInitCmd() *cobra.Command {
 			cfg := config.DefaultConfig()
 			data, err := yaml.Marshal(cfg)
 			if err != nil {
-				return fmt.Errorf("marshalling config: %w", err)
+				return fmt.Errorf("marshaling config: %w", err)
 			}
 
 			if output != "" {
-				if err := os.WriteFile(output, data, 0644); err != nil {
+				if err := os.WriteFile(output, data, 0o644); err != nil {
 					return fmt.Errorf("writing config to %s: %w", output, err)
 				}
 				fmt.Printf("Configuration written to %s\n", output)

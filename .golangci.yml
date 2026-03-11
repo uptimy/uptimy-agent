@@ -1,3 +1,5 @@
+version: "2"
+
 run:
   timeout: 5m
   modules-download-mode: readonly
@@ -8,40 +10,41 @@ linters:
     - govet
     - staticcheck
     - unused
-    - gosimple
     - ineffassign
-    - typecheck
-    - gofmt
-    - goimports
     - misspell
     - unconvert
     - gocritic
     - revive
     - nolintlint
+  settings:
+    govet:
+      enable-all: true
+      disable:
+        - fieldalignment # too noisy for a new project
+    revive:
+      rules:
+        - name: blank-imports
+        - name: context-as-argument
+        - name: error-return
+        - name: error-strings
+        - name: exported
+        - name: increment-decrement
+        - name: var-naming
+    gocritic:
+      enabled-tags:
+        - diagnostic
+        - style
+        - performance
+    misspell:
+      locale: US
+  exclusions:
+    presets: []
 
-linters-settings:
-  govet:
-    enable-all: true
-    disable:
-      - fieldalignment # too noisy for a new project
-  revive:
-    rules:
-      - name: blank-imports
-      - name: context-as-argument
-      - name: error-return
-      - name: error-strings
-      - name: exported
-      - name: increment-decrement
-      - name: var-naming
-  gocritic:
-    enabled-tags:
-      - diagnostic
-      - style
-      - performance
-  misspell:
-    locale: US
+formatters:
+  enable:
+    - gofmt
+    - goimports
 
 issues:
-  exclude-use-default: false
   max-issues-per-linter: 0
   max-same-issues: 0

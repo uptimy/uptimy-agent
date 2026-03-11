@@ -20,12 +20,15 @@ type RollbackDeploymentAction struct {
 	logger *zap.SugaredLogger
 }
 
+// NewRollbackDeploymentAction creates a RollbackDeploymentAction.
 func NewRollbackDeploymentAction(client k8sclient.Interface, logger *zap.SugaredLogger) *RollbackDeploymentAction {
 	return &RollbackDeploymentAction{client: client, logger: logger}
 }
 
+// Name returns the action name.
 func (a *RollbackDeploymentAction) Name() string { return "rollback_deployment" }
 
+// Execute runs the rollback deployment action.
 func (a *RollbackDeploymentAction) Execute(ctx context.Context, params map[string]string) error {
 	if a.client == nil {
 		return fmt.Errorf("rollback_deployment: kubernetes is not available")
@@ -133,6 +136,6 @@ func isOwnedBy(refs []metav1.OwnerReference, uid types.UID) bool {
 
 func parseRevision(s string) int64 {
 	var v int64
-	fmt.Sscan(s, &v)
+	_, _ = fmt.Sscan(s, &v)
 	return v
 }

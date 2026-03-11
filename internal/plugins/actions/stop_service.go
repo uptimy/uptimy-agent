@@ -14,12 +14,15 @@ type StopServiceAction struct {
 	logger *zap.SugaredLogger
 }
 
+// NewStopServiceAction creates a StopServiceAction.
 func NewStopServiceAction(logger *zap.SugaredLogger) *StopServiceAction {
 	return &StopServiceAction{logger: logger}
 }
 
+// Name returns the action name.
 func (a *StopServiceAction) Name() string { return "stop_service" }
 
+// Execute runs the stop service action.
 func (a *StopServiceAction) Execute(ctx context.Context, params map[string]string) error {
 	service := params["service"]
 	if service == "" {

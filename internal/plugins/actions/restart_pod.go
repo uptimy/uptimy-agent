@@ -24,8 +24,10 @@ func NewRestartPodAction(client k8sclient.Interface, logger *zap.SugaredLogger) 
 	return &RestartPodAction{client: client, logger: logger}
 }
 
+// Name returns the action name.
 func (a *RestartPodAction) Name() string { return "restart_pod" }
 
+// Execute runs the restart pod action.
 func (a *RestartPodAction) Execute(ctx context.Context, params map[string]string) error {
 	if a.client == nil {
 		return fmt.Errorf("restart_pod: kubernetes is not available")

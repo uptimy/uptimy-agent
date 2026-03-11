@@ -47,7 +47,7 @@ func (c *HTTPCheck) Run(ctx context.Context) checks.CheckResult {
 	ctx, cancel := context.WithTimeout(ctx, c.timeout)
 	defer cancel()
 
-	req, err := http.NewRequestWithContext(ctx, c.method, c.url, nil)
+	req, err := http.NewRequestWithContext(ctx, c.method, c.url, http.NoBody)
 	if err != nil {
 		return checks.CheckResult{
 			Name:      c.name,
@@ -74,7 +74,7 @@ func (c *HTTPCheck) Run(ctx context.Context) checks.CheckResult {
 			Duration:  time.Since(start),
 		}
 	}
-	defer resp.Body.Close()
+	defer resp.Body.Close() //nolint:errcheck // best-effort close of HTTP response body
 
 	duration := time.Since(start)
 	metadata := map[string]string{

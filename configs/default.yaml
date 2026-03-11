@@ -1,4 +1,4 @@
-# Uptimy Agent — Default Configuration
+# Uptimy Agent - Default Configuration
 # See docs/uptimy_agent_architecture.md for details.
 
 agent:
@@ -77,7 +77,7 @@ checks:
     interval: 3600s
     timeout: 30s
 
-# Repair recipes — multi-step workflows
+# Repair recipes - multi-step workflows
 recipes:
   - name: restart_then_rollback
     steps:
@@ -134,7 +134,7 @@ recipes:
       - action: healthcheck
         check: nginx-running
 
-# Repair rules — map checks to recipes
+# Repair rules - map checks to recipes
 repairs:
   - rule: example-api-down
     check: example-api

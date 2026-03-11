@@ -34,7 +34,7 @@ func NewManager(store storage.Store, events chan Event, logger *zap.SugaredLogge
 		events: events,
 		active: make(map[string]*Incident),
 	}
-	// Initialise the atomic counter to a timestamp-based value so IDs
+	// Initialize the atomic counter to a timestamp-based value so IDs
 	// never collide with IDs generated before a restart.
 	m.idCounter.Store(time.Now().UnixMilli())
 	return m
@@ -52,14 +52,14 @@ func (m *Manager) Rehydrate() error {
 	defer m.mu.Unlock()
 
 	for _, si := range stored {
-		if si.Status == string(StatusResolved) {
+		if si.Status == StatusResolved {
 			continue
 		}
 		inc := &Incident{
 			ID:           si.ID,
 			CheckName:    si.CheckName,
 			Service:      si.Service,
-			Status:       Status(si.Status),
+			Status:       si.Status,
 			FailureCount: si.FailureCount,
 			CreatedAt:    si.CreatedAt,
 			UpdatedAt:    si.UpdatedAt,
@@ -72,20 +72,20 @@ func (m *Manager) Rehydrate() error {
 	return nil
 }
 
-// Run processes check results from the results channel until ctx is cancelled.
+// Run processes check results from the results channel until ctx is canceled.
 func (m *Manager) Run(ctx context.Context, results <-chan checks.CheckResult) {
 	for {
 		select {
 		case <-ctx.Done():
 			return
 		case result := <-results:
-			m.processResult(result)
+			m.processResult(&result)
 		}
 	}
 }
 
 // processResult handles a single check result.
-func (m *Manager) processResult(result checks.CheckResult) {
+func (m *Manager) processResult(result *checks.CheckResult) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -126,7 +126,7 @@ func (m *Manager) processResult(result checks.CheckResult) {
 }
 
 // createIncident builds a new Incident from a failed check result.
-func (m *Manager) createIncident(result checks.CheckResult) *Incident {
+func (m *Manager) createIncident(result *checks.CheckResult) *Incident {
 	seq := m.idCounter.Add(1)
 	now := time.Now()
 	return &Incident{
@@ -213,7 +213,7 @@ func (m *Manager) persistIncident(inc *Incident) {
 		ID:           inc.ID,
 		CheckName:    inc.CheckName,
 		Service:      inc.Service,
-		Status:       string(inc.Status),
+		Status:       inc.Status,
 		FailureCount: inc.FailureCount,
 		CreatedAt:    inc.CreatedAt,
 		UpdatedAt:    inc.UpdatedAt,

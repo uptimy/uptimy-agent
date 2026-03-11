@@ -1,6 +1,7 @@
 package storage_test
 
 import (
+	"bytes"
 	"os"
 	"path/filepath"
 	"testing"
@@ -9,7 +10,7 @@ import (
 	"github.com/uptimy/uptimy-agent/internal/storage"
 )
 
-func tempStore(t *testing.T) (storage.Store, func()) {
+func tempStore(t *testing.T) (store storage.Store, cleanup func()) {
 	t.Helper()
 	dir := t.TempDir()
 	path := filepath.Join(dir, "test.db")
@@ -18,8 +19,8 @@ func tempStore(t *testing.T) (storage.Store, func()) {
 		t.Fatalf("failed to create store: %v", err)
 	}
 	return store, func() {
-		store.Close()
-		os.Remove(path)
+		_ = store.Close()
+		_ = os.Remove(path)
 	}
 }
 
@@ -115,7 +116,7 @@ func TestBoltStore_ConfigCache(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GetConfigCache: %v", err)
 	}
-	if string(got) != string(data) {
+	if !bytes.Equal(got, data) {
 		t.Errorf("expected %s, got %s", string(data), string(got))
 	}
 }
@@ -136,7 +137,7 @@ func TestBoltStore_OpenNonexistentDir(t *testing.T) {
 	if err != nil {
 		t.Fatalf("should create nested dirs: %v", err)
 	}
-	store.Close()
+	_ = store.Close()
 }
 
 func TestBoltStore_CloseIdempotent(t *testing.T) {
@@ -147,5 +148,5 @@ func TestBoltStore_CloseIdempotent(t *testing.T) {
 		t.Fatalf("first Close: %v", err)
 	}
 	// Second close should not panic.
-	store.Close()
+	_ = store.Close()
 }

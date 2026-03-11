@@ -1,7 +1,7 @@
 # ──────────────────────────────────────────────────────────────────────
 #  Example: Full-Stack Monitoring
 #
-#  Scenario: A complete production setup — web server, API, database,
+#  Scenario: A complete production setup - web server, API, database,
 #  disk, CPU, memory, and TLS certs. Demonstrates how to combine all
 #  check types and repair actions into a single config.
 #
@@ -203,7 +203,7 @@ recipes:
           url: ${ALERT_WEBHOOK_URL}
           method: POST
 
-  # Resource alert: just notify — don't auto-remediate CPU/memory
+  # Resource alert: just notify - don't auto-remediate CPU/memory
   - name: resource-alert
     steps:
       - action: webhook

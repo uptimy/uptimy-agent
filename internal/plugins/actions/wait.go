@@ -8,7 +8,7 @@ import (
 )
 
 // WaitAction pauses execution for a configurable duration.
-// It's useful as a cooldown or stabilisation step in repair recipes.
+// It's useful as a cooldown or stabilization step in repair recipes.
 type WaitAction struct {
 	logger *zap.SugaredLogger
 }
