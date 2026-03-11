@@ -1,0 +1,152 @@
+# Uptimy Agent — Default Configuration
+# See docs/uptimy_agent_architecture.md for details.
+
+agent:
+  name: uptimy-agent
+  worker_pool_size: 4
+
+logging:
+  level: info
+  format: json
+
+telemetry:
+  enabled: true
+  metrics_port: 9090
+  buffer_size: 10000
+
+storage:
+  path: ./data/state.db
+
+kubernetes:
+  enabled: "auto"
+
+control_plane:
+  enabled: false
+
+# Health checks
+checks:
+  - type: http
+    name: example-api
+    service: example
+    url: http://localhost:8080/health
+    interval: 30s
+    timeout: 5s
+    expected_status: 200
+
+  - type: tcp
+    name: database-tcp
+    service: postgres
+    address: localhost:5432
+    interval: 30s
+    timeout: 5s
+
+  - type: cpu
+    name: high-cpu
+    service: system
+    threshold: 90
+    interval: 60s
+    timeout: 10s
+
+  - type: memory
+    name: high-memory
+    service: system
+    threshold: 90
+    interval: 60s
+    timeout: 10s
+
+  - type: disk
+    name: disk-usage
+    service: system
+    path: /
+    threshold: 85
+    interval: 300s
+    timeout: 10s
+
+  - type: process
+    name: nginx-running
+    service: nginx
+    service_name: nginx
+    interval: 30s
+    timeout: 5s
+
+  - type: certificate
+    name: api-cert
+    service: example
+    cert_url: api.example.com:443
+    days_before_expiry: 30
+    interval: 3600s
+    timeout: 30s
+
+# Repair recipes — multi-step workflows
+recipes:
+  - name: restart_then_rollback
+    steps:
+      - action: restart_pod
+        retries: 2
+        params:
+          pod: example-pod
+          namespace: default
+      - action: wait
+        duration: 30s
+      - action: healthcheck
+        check: example-api
+      - action: rollback_deployment
+        on_failure_only: true
+        params:
+          deployment: example
+          namespace: default
+
+  - name: restart_service_recipe
+    steps:
+      - action: restart_service
+        retries: 2
+        params:
+          service: nginx
+      - action: wait
+        duration: 10s
+      - action: healthcheck
+        check: nginx-running
+
+  - name: clear_disk_space
+    steps:
+      - action: clear_temp
+        params:
+          path: /tmp
+          age: 24h
+      - action: rotate_logs
+        params:
+          path: /var/log/nginx/access.log
+          max_size: 100MB
+      - action: healthcheck
+        check: disk-usage
+
+  - name: notify_and_restart
+    steps:
+      - action: webhook
+        params:
+          url: https://hooks.example.com/alert
+          method: POST
+      - action: restart_service
+        params:
+          service: nginx
+      - action: wait
+        duration: 15s
+      - action: healthcheck
+        check: nginx-running
+
+# Repair rules — map checks to recipes
+repairs:
+  - rule: example-api-down
+    check: example-api
+    recipe: restart_then_rollback
+    max_repairs_per_hour: 3
+
+  - rule: nginx-down
+    check: nginx-running
+    recipe: restart_service_recipe
+    max_repairs_per_hour: 5
+
+  - rule: disk-full
+    check: disk-usage
+    recipe: clear_disk_space
+    max_repairs_per_hour: 2

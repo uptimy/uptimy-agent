@@ -1,0 +1,159 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: uptimy
+  labels:
+    app.kubernetes.io/name: uptimy-agent
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: uptimy-agent
+  namespace: uptimy
+  labels:
+    app.kubernetes.io/name: uptimy-agent
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: uptimy-agent
+  labels:
+    app.kubernetes.io/name: uptimy-agent
+rules:
+  # Read events for failure detection
+  - apiGroups: [""]
+    resources: ["events", "pods", "nodes"]
+    verbs: ["get", "list", "watch"]
+  # Repair actions: restart pods, scale deployments, rollback
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["delete"]
+  - apiGroups: ["apps"]
+    resources: ["deployments", "deployments/rollback", "replicasets"]
+    verbs: ["get", "list", "patch", "update"]
+  - apiGroups: ["apps"]
+    resources: ["deployments/scale"]
+    verbs: ["get", "patch", "update"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: uptimy-agent
+  labels:
+    app.kubernetes.io/name: uptimy-agent
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: uptimy-agent
+subjects:
+  - kind: ServiceAccount
+    name: uptimy-agent
+    namespace: uptimy
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: uptimy-agent-config
+  namespace: uptimy
+  labels:
+    app.kubernetes.io/name: uptimy-agent
+data:
+  config.yaml: |
+    agent:
+      name: uptimy-agent
+      worker_pool_size: 4
+
+    logging:
+      level: info
+      format: json
+
+    telemetry:
+      enabled: true
+      metrics_port: 9090
+      buffer_size: 10000
+
+    storage:
+      path: /var/lib/uptimy/state.db
+
+    kubernetes:
+      enabled: "true"
+      # namespace: ""  # empty = watch all namespaces
+
+    control_plane:
+      enabled: false
+
+    # Add your checks, recipes, and repair rules below.
+    checks: []
+    recipes: []
+    repairs: []
+---
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: uptimy-agent
+  namespace: uptimy
+  labels:
+    app.kubernetes.io/name: uptimy-agent
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: uptimy-agent
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: uptimy-agent
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9090"
+        prometheus.io/path: "/metrics"
+    spec:
+      serviceAccountName: uptimy-agent
+      terminationGracePeriodSeconds: 30
+      containers:
+        - name: uptimy-agent
+          image: uptimy/agent:latest
+          args:
+            - run
+            - --config
+            - /etc/uptimy/config.yaml
+          ports:
+            - name: metrics
+              containerPort: 9090
+              protocol: TCP
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: metrics
+            initialDelaySeconds: 10
+            periodSeconds: 30
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: metrics
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 200m
+              memory: 128Mi
+          volumeMounts:
+            - name: config
+              mountPath: /etc/uptimy
+              readOnly: true
+            - name: data
+              mountPath: /var/lib/uptimy
+          securityContext:
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+      volumes:
+        - name: config
+          configMap:
+            name: uptimy-agent-config
+        - name: data
+          emptyDir: {}

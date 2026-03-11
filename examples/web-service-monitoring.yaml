@@ -1,0 +1,95 @@
+# ──────────────────────────────────────────────────────────────────────
+#  Example: Web Service Monitoring
+#
+#  Scenario: You run a web API behind Nginx. If the API health endpoint
+#  goes down, the agent restarts the container, waits, then verifies
+#  the service is back. If it isn't, it sends a webhook alert.
+#
+#  Works with: Docker containers, any HTTP service
+# ──────────────────────────────────────────────────────────────────────
+
+agent:
+  name: web-monitor
+  worker_pool_size: 4
+
+logging:
+  level: info
+  format: json
+
+storage:
+  path: /var/lib/uptimy/state.db
+
+checks:
+  # Monitor your API health endpoint
+  - type: http
+    name: api-health
+    service: my-api
+    url: http://localhost:8080/health
+    method: GET
+    expected_status: 200
+    interval: 15s
+    timeout: 5s
+
+  # Monitor Nginx is responding
+  - type: http
+    name: nginx-status
+    service: nginx
+    url: http://localhost:80/
+    method: GET
+    expected_status: 200
+    interval: 15s
+    timeout: 5s
+
+  # Make sure Nginx process is running
+  - type: process
+    name: nginx-process
+    service: nginx
+    service_name: nginx
+    interval: 10s
+    timeout: 5s
+
+recipes:
+  # Restart the Docker container, verify health
+  - name: restart-api-container
+    steps:
+      - action: restart_container
+        retries: 2
+        params:
+          container: my-api
+      - action: wait
+        duration: 15s
+      - action: healthcheck
+        check: api-health
+      - action: webhook
+        on_failure_only: true
+        params:
+          url: ${ALERT_WEBHOOK_URL}
+          method: POST
+
+  # Restart Nginx service and verify
+  - name: restart-nginx
+    steps:
+      - action: restart_service
+        retries: 2
+        params:
+          service: nginx
+      - action: wait
+        duration: 5s
+      - action: healthcheck
+        check: nginx-status
+
+repairs:
+  - rule: api-down
+    check: api-health
+    recipe: restart-api-container
+    max_repairs_per_hour: 5
+
+  - rule: nginx-down
+    check: nginx-status
+    recipe: restart-nginx
+    max_repairs_per_hour: 5
+
+  - rule: nginx-process-dead
+    check: nginx-process
+    recipe: restart-nginx
+    max_repairs_per_hour: 5

@@ -1,0 +1,130 @@
+# ──────────────────────────────────────────────────────────────────────
+#  Example: Disk Space & Log Management
+#
+#  Scenario: Your servers fill up with logs and temp files. The agent
+#  watches disk usage and CPU/memory, automatically cleans temp files,
+#  rotates logs, and alerts if the situation doesn't improve.
+#
+#  Works with: Any Linux/macOS server
+# ──────────────────────────────────────────────────────────────────────
+
+agent:
+  name: disk-monitor
+  worker_pool_size: 4
+
+logging:
+  level: info
+  format: json
+
+storage:
+  path: /var/lib/uptimy/state.db
+
+checks:
+  # Root filesystem usage (alert at 85%)
+  - type: disk
+    name: root-disk
+    service: system
+    path: /
+    threshold: 85
+    interval: 120s
+    timeout: 10s
+
+  # Data partition (if separate)
+  - type: disk
+    name: data-disk
+    service: system
+    path: /var
+    threshold: 80
+    interval: 120s
+    timeout: 10s
+
+  # High CPU — may indicate runaway process
+  - type: cpu
+    name: high-cpu
+    service: system
+    threshold: 90
+    interval: 60s
+    timeout: 10s
+
+  # High memory usage
+  - type: memory
+    name: high-memory
+    service: system
+    threshold: 90
+    interval: 60s
+    timeout: 10s
+
+recipes:
+  # Clean temp files, then rotate large logs
+  - name: free-disk-space
+    steps:
+      - action: clear_temp
+        params:
+          path: /tmp
+          age: 24h
+      - action: clear_temp
+        params:
+          path: /var/tmp
+          age: 48h
+      - action: rotate_logs
+        params:
+          path: /var/log/syslog
+          max_size: 100MB
+      - action: rotate_logs
+        params:
+          path: /var/log/nginx/access.log
+          max_size: 50MB
+      - action: wait
+        duration: 5s
+      - action: healthcheck
+        check: root-disk
+      - action: webhook
+        on_failure_only: true
+        params:
+          url: ${ALERT_WEBHOOK_URL}
+          method: POST
+
+  # Data partition specific cleanup
+  - name: free-data-disk
+    steps:
+      - action: rotate_logs
+        params:
+          path: /var/log/app/application.log
+          max_size: 200MB
+      - action: clear_temp
+        params:
+          path: /var/cache/apt/archives
+          age: 72h
+      - action: wait
+        duration: 5s
+      - action: healthcheck
+        check: data-disk
+
+  # High resource usage — notify (don't auto-kill)
+  - name: resource-alert
+    steps:
+      - action: webhook
+        params:
+          url: ${ALERT_WEBHOOK_URL}
+          method: POST
+
+repairs:
+  - rule: root-full
+    check: root-disk
+    recipe: free-disk-space
+    max_repairs_per_hour: 2
+
+  - rule: data-full
+    check: data-disk
+    recipe: free-data-disk
+    max_repairs_per_hour: 2
+
+  - rule: cpu-overload
+    check: high-cpu
+    recipe: resource-alert
+    max_repairs_per_hour: 3
+
+  - rule: memory-overload
+    check: high-memory
+    recipe: resource-alert
+    max_repairs_per_hour: 3

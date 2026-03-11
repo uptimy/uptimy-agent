@@ -1,0 +1,111 @@
+# ──────────────────────────────────────────────────────────────────────
+#  Example: Kubernetes Self-Healing
+#
+#  Scenario: You have a microservices stack running in Kubernetes.
+#  The agent monitors pod health via HTTP checks and watches for
+#  cluster events. On failure it restarts pods, and if that doesn't
+#  work, rolls back to the previous deployment revision or scales up.
+#
+#  Deploy via: deploy/kubernetes/daemonset.yaml
+# ──────────────────────────────────────────────────────────────────────
+
+agent:
+  name: k8s-healer
+  worker_pool_size: 4
+
+logging:
+  level: info
+  format: json
+
+storage:
+  path: /var/lib/uptimy/state.db
+
+kubernetes:
+  enabled: "true" # Enable K8s event watcher (CrashLoopBackOff, etc.)
+
+checks:
+  # Frontend service health
+  - type: http
+    name: frontend-health
+    service: frontend
+    url: http://frontend.default.svc.cluster.local:3000/healthz
+    interval: 15s
+    timeout: 5s
+    expected_status: 200
+
+  # Backend API health
+  - type: http
+    name: backend-health
+    service: backend
+    url: http://backend-api.default.svc.cluster.local:8080/health
+    interval: 15s
+    timeout: 5s
+    expected_status: 200
+
+  # Payment service TCP port check
+  - type: tcp
+    name: payment-service
+    service: payment
+    address: payment.default.svc.cluster.local:9090
+    interval: 15s
+    timeout: 5s
+
+recipes:
+  # Restart pod, verify, then rollback if still broken
+  - name: restart-or-rollback
+    steps:
+      - action: restart_pod
+        retries: 2
+        params:
+          namespace: default
+      - action: wait
+        duration: 30s
+      - action: healthcheck
+      - action: rollback_deployment
+        on_failure_only: true
+        params:
+          namespace: default
+
+  # Scale up if service is under pressure, then verify
+  - name: scale-up-and-verify
+    steps:
+      - action: webhook
+        params:
+          url: ${ALERT_WEBHOOK_URL}
+          method: POST
+      - action: scale_replicas
+        params:
+          namespace: default
+          replicas: 5
+      - action: wait
+        duration: 60s
+      - action: healthcheck
+
+  # Just restart the specific pod
+  - name: restart-payment-pod
+    steps:
+      - action: restart_pod
+        retries: 2
+        params:
+          pod: payment
+          namespace: default
+      - action: wait
+        duration: 20s
+      - action: healthcheck
+        check: payment-service
+
+repairs:
+  - rule: frontend-down
+    check: frontend-health
+    recipe: restart-or-rollback
+    max_repairs_per_hour: 5
+
+  - rule: backend-down
+    check: backend-health
+    recipe: scale-up-and-verify
+    max_repairs_per_hour: 3
+
+  - rule: payment-down
+    check: payment-service
+    recipe: restart-payment-pod
+    max_repairs_per_hour: 5

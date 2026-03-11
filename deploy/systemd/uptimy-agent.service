@@ -1,0 +1,26 @@
+[Unit]
+Description=Uptimy Agent — Self-Healing Infrastructure Watchdog
+Documentation=https://github.com/uptimy/uptimy-agent
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=uptimy
+Group=uptimy
+ExecStart=/usr/local/bin/uptimy-agent run --config /etc/uptimy/config.yaml
+Restart=on-failure
+RestartSec=5
+LimitNOFILE=65536
+
+# Environment file (optional) — source secrets like UPTIMY_TOKEN here.
+EnvironmentFile=-/etc/uptimy/env
+
+# Hardening
+NoNewPrivileges=true
+ProtectSystem=full
+ProtectHome=true
+ReadWritePaths=/var/lib/uptimy
+
+[Install]
+WantedBy=multi-user.target

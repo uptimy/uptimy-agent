@@ -1,0 +1,111 @@
+# ──────────────────────────────────────────────────────────────────────
+#  Example: SSL/TLS Certificate Monitoring
+#
+#  Scenario: You have multiple domains and want to know BEFORE
+#  certificates expire. The agent checks certificate expiry and sends
+#  a webhook alert when certs are approaching their expiration date.
+#
+#  Works with: Any TLS endpoint (HTTPS sites, mail servers, etc.)
+# ──────────────────────────────────────────────────────────────────────
+
+agent:
+  name: cert-monitor
+  worker_pool_size: 2
+
+logging:
+  level: info
+  format: json
+
+storage:
+  path: /var/lib/uptimy/state.db
+
+checks:
+  # Production API — alert 30 days before expiry
+  - type: certificate
+    name: api-cert
+    service: api
+    cert_url: api.example.com:443
+    days_before_expiry: 30
+    interval: 3600s # Check every hour
+    timeout: 30s
+
+  # Marketing website
+  - type: certificate
+    name: www-cert
+    service: website
+    cert_url: www.example.com:443
+    days_before_expiry: 30
+    interval: 3600s
+    timeout: 30s
+
+  # Internal dashboard
+  - type: certificate
+    name: dashboard-cert
+    service: dashboard
+    cert_url: dashboard.internal.example.com:443
+    days_before_expiry: 14
+    interval: 3600s
+    timeout: 30s
+
+  # Mail server TLS
+  - type: certificate
+    name: mail-cert
+    service: mail
+    cert_url: mail.example.com:465
+    days_before_expiry: 30
+    interval: 3600s
+    timeout: 30s
+
+  # Local cert file (e.g. for services using cert files)
+  # - type: certificate
+  #   name: local-cert
+  #   service: local-proxy
+  #   cert_path: /etc/ssl/certs/proxy.pem
+  #   days_before_expiry: 14
+  #   interval: 3600s
+  #   timeout: 10s
+
+recipes:
+  # Send alert via webhook (Slack, PagerDuty, etc.)
+  - name: cert-expiry-alert
+    steps:
+      - action: webhook
+        params:
+          url: ${SLACK_WEBHOOK_URL}
+          method: POST
+
+  # For Let's Encrypt: trigger renewal via certbot, then reload
+  # Uncomment if using certbot:
+  # - name: renew-and-reload
+  #   steps:
+  #     - action: restart_service
+  #       params:
+  #         service: certbot-renew
+  #     - action: wait
+  #       duration: 30s
+  #     - action: restart_service
+  #       params:
+  #         service: nginx
+  #     - action: healthcheck
+  #       check: api-cert
+
+repairs:
+  - rule: api-cert-expiring
+    check: api-cert
+    recipe: cert-expiry-alert
+    max_repairs_per_hour: 1
+
+  - rule: www-cert-expiring
+    check: www-cert
+    recipe: cert-expiry-alert
+    max_repairs_per_hour: 1
+
+  - rule: dashboard-cert-expiring
+    check: dashboard-cert
+    recipe: cert-expiry-alert
+    max_repairs_per_hour: 1
+
+  - rule: mail-cert-expiring
+    check: mail-cert
+    recipe: cert-expiry-alert
+    max_repairs_per_hour: 1

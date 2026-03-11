@@ -1,0 +1,34 @@
+# Binaries
+bin/
+uptimy-agent
+*.exe
+
+# Go
+vendor/
+*.test
+*.out
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Environment
+.env
+.env.local
+
+# Build
+dist/
+coverage.out
+coverage.html
+
+# Config overrides
+configs/local.yaml
+
+bin/

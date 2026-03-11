@@ -1,0 +1,87 @@
+# ──────────────────────────────────────────────────────────────────────
+#  Example: Database Health Monitoring
+#
+#  Scenario: You run PostgreSQL and Redis. The agent monitors TCP
+#  connectivity to both. If Postgres goes down, it restarts the
+#  systemd service and verifies. If Redis goes down, it restarts the
+#  container.
+#
+#  Works with: Any TCP-accessible database (Postgres, MySQL, Redis,
+#  MongoDB, etc.)
+# ──────────────────────────────────────────────────────────────────────
+
+agent:
+  name: db-monitor
+  worker_pool_size: 4
+
+logging:
+  level: info
+  format: json
+
+storage:
+  path: /var/lib/uptimy/state.db
+
+checks:
+  # PostgreSQL connectivity
+  - type: tcp
+    name: postgres-alive
+    service: postgres
+    address: localhost:5432
+    interval: 15s
+    timeout: 5s
+
+  # Redis connectivity
+  - type: tcp
+    name: redis-alive
+    service: redis
+    address: localhost:6379
+    interval: 15s
+    timeout: 5s
+
+  # MySQL connectivity (if applicable)
+  # - type: tcp
+  #   name: mysql-alive
+  #   service: mysql
+  #   address: localhost:3306
+  #   interval: 15s
+  #   timeout: 5s
+
+recipes:
+  # Restart Postgres via systemd, then verify TCP
+  - name: restart-postgres
+    steps:
+      - action: webhook
+        params:
+          url: ${ALERT_WEBHOOK_URL}
+          method: POST
+      - action: restart_service
+        retries: 2
+        params:
+          service: postgresql
+      - action: wait
+        duration: 10s
+      - action: healthcheck
+        check: postgres-alive
+
+  # Restart Redis container, then verify
+  - name: restart-redis
+    steps:
+      - action: restart_container
+        retries: 2
+        params:
+          container: redis
+      - action: wait
+        duration: 5s
+      - action: healthcheck
+        check: redis-alive
+
+repairs:
+  - rule: postgres-unreachable
+    check: postgres-alive
+    recipe: restart-postgres
+    max_repairs_per_hour: 3
+
+  - rule: redis-unreachable
+    check: redis-alive
+    recipe: restart-redis
+    max_repairs_per_hour: 5

@@ -1,0 +1,80 @@
+syntax = "proto3";
+
+package uptimy.agent.v1;
+
+option go_package = "github.com/uptimy/uptimy-agent/pkg/client/proto;agentpb";
+
+// AgentControlPlane is the bidirectional streaming service between
+// the Uptimy Agent and the control plane.
+service AgentControlPlane {
+  // Connect opens a persistent bidirectional stream.
+  // The agent sends telemetry and receives configuration updates.
+  rpc Connect(stream AgentMessage) returns (stream ServerMessage);
+}
+
+// AgentMessage is sent from the agent to the control plane.
+message AgentMessage {
+  string agent_id = 1;
+
+  oneof payload {
+    Heartbeat heartbeat = 2;
+    TelemetryBatch telemetry_batch = 3;
+    IncidentReport incident_report = 4;
+    RepairReport repair_report = 5;
+  }
+}
+
+// ServerMessage is sent from the control plane to the agent.
+message ServerMessage {
+  oneof payload {
+    ConfigUpdate config_update = 1;
+    CommandRequest command_request = 2;
+  }
+}
+
+message Heartbeat {
+  int64 timestamp = 1;
+  string status = 2;
+  int32 active_incidents = 3;
+}
+
+message TelemetryBatch {
+  repeated TelemetryEvent events = 1;
+}
+
+message TelemetryEvent {
+  string type = 1;
+  int64 timestamp = 2;
+  map<string, string> data = 3;
+}
+
+message IncidentReport {
+  string incident_id = 1;
+  string check_name = 2;
+  string service = 3;
+  string status = 4;
+  int32 failure_count = 5;
+  int64 created_at = 6;
+}
+
+message RepairReport {
+  string repair_id = 1;
+  string incident_id = 2;
+  string rule = 3;
+  string recipe = 4;
+  string status = 5;
+  int64 started_at = 6;
+  int64 finished_at = 7;
+  string error = 8;
+}
+
+message ConfigUpdate {
+  int32 config_version = 1;
+  string bundle_url = 2;
+  string signature = 3;
+}
+
+message CommandRequest {
+  string command = 1;
+  map<string, string> params = 2;
+}

@@ -1,0 +1,268 @@
+# ──────────────────────────────────────────────────────────────────────
+#  Example: Full-Stack Monitoring
+#
+#  Scenario: A complete production setup — web server, API, database,
+#  disk, CPU, memory, and TLS certs. Demonstrates how to combine all
+#  check types and repair actions into a single config.
+#
+#  Copy this file and remove the parts you don't need.
+# ──────────────────────────────────────────────────────────────────────
+
+agent:
+  name: production-agent
+  worker_pool_size: 8
+
+logging:
+  level: info
+  format: json
+
+telemetry:
+  enabled: true
+  metrics_port: 9090
+  buffer_size: 10000
+
+storage:
+  path: /var/lib/uptimy/state.db
+
+kubernetes:
+  enabled: "auto"
+
+control_plane:
+  enabled: false
+
+# ── Health Checks ────────────────────────────────────────────────────
+
+checks:
+  # --- Application layer ---
+  - type: http
+    name: api-health
+    service: api
+    url: http://localhost:8080/health
+    method: GET
+    expected_status: 200
+    interval: 15s
+    timeout: 5s
+
+  - type: http
+    name: web-frontend
+    service: web
+    url: http://localhost:3000/
+    expected_status: 200
+    interval: 30s
+    timeout: 5s
+
+  # --- Data layer ---
+  - type: tcp
+    name: postgres
+    service: postgres
+    address: localhost:5432
+    interval: 15s
+    timeout: 5s
+
+  - type: tcp
+    name: redis
+    service: redis
+    address: localhost:6379
+    interval: 15s
+    timeout: 5s
+
+  # --- Process checks ---
+  - type: process
+    name: nginx-running
+    service: nginx
+    service_name: nginx
+    interval: 10s
+    timeout: 5s
+
+  # --- System resources ---
+  - type: cpu
+    name: cpu-check
+    service: system
+    threshold: 90
+    interval: 60s
+    timeout: 10s
+
+  - type: memory
+    name: memory-check
+    service: system
+    threshold: 90
+    interval: 60s
+    timeout: 10s
+
+  - type: disk
+    name: disk-check
+    service: system
+    path: /
+    threshold: 85
+    interval: 120s
+    timeout: 10s
+
+  # --- TLS certificates ---
+  - type: certificate
+    name: api-cert
+    service: api
+    cert_url: api.example.com:443
+    days_before_expiry: 30
+    interval: 3600s
+    timeout: 30s
+
+# ── Repair Recipes ───────────────────────────────────────────────────
+
+recipes:
+  # API: restart container → wait → verify → alert if still down
+  - name: heal-api
+    steps:
+      - action: restart_container
+        retries: 2
+        params:
+          container: api
+      - action: wait
+        duration: 15s
+      - action: healthcheck
+        check: api-health
+      - action: webhook
+        on_failure_only: true
+        params:
+          url: ${ALERT_WEBHOOK_URL}
+          method: POST
+
+  # Web frontend: restart container → verify
+  - name: heal-web
+    steps:
+      - action: restart_container
+        retries: 2
+        params:
+          container: web-frontend
+      - action: wait
+        duration: 10s
+      - action: healthcheck
+        check: web-frontend
+
+  # Postgres: restart systemd service → verify TCP
+  - name: heal-postgres
+    steps:
+      - action: webhook
+        params:
+          url: ${ALERT_WEBHOOK_URL}
+          method: POST
+      - action: restart_service
+        retries: 2
+        params:
+          service: postgresql
+      - action: wait
+        duration: 10s
+      - action: healthcheck
+        check: postgres
+
+  # Redis: restart container → verify
+  - name: heal-redis
+    steps:
+      - action: restart_container
+        retries: 2
+        params:
+          container: redis
+      - action: wait
+        duration: 5s
+      - action: healthcheck
+        check: redis
+
+  # Nginx: restart service → verify process + HTTP
+  - name: heal-nginx
+    steps:
+      - action: restart_service
+        retries: 2
+        params:
+          service: nginx
+      - action: wait
+        duration: 5s
+      - action: healthcheck
+        check: nginx-running
+
+  # Disk full: clean temp + rotate logs → verify
+  - name: free-disk
+    steps:
+      - action: clear_temp
+        params:
+          path: /tmp
+          age: 24h
+      - action: rotate_logs
+        params:
+          path: /var/log/nginx/access.log
+          max_size: 100MB
+      - action: rotate_logs
+        params:
+          path: /var/log/app/application.log
+          max_size: 200MB
+      - action: wait
+        duration: 5s
+      - action: healthcheck
+        check: disk-check
+      - action: webhook
+        on_failure_only: true
+        params:
+          url: ${ALERT_WEBHOOK_URL}
+          method: POST
+
+  # Resource alert: just notify — don't auto-remediate CPU/memory
+  - name: resource-alert
+    steps:
+      - action: webhook
+        params:
+          url: ${ALERT_WEBHOOK_URL}
+          method: POST
+
+  # Cert expiry: notify the team
+  - name: cert-alert
+    steps:
+      - action: webhook
+        params:
+          url: ${SLACK_WEBHOOK_URL}
+          method: POST
+
+# ── Repair Rules ─────────────────────────────────────────────────────
+
+repairs:
+  - rule: api-down
+    check: api-health
+    recipe: heal-api
+    max_repairs_per_hour: 5
+
+  - rule: web-down
+    check: web-frontend
+    recipe: heal-web
+    max_repairs_per_hour: 5
+
+  - rule: postgres-down
+    check: postgres
+    recipe: heal-postgres
+    max_repairs_per_hour: 3
+
+  - rule: redis-down
+    check: redis
+    recipe: heal-redis
+    max_repairs_per_hour: 5
+
+  - rule: nginx-dead
+    check: nginx-running
+    recipe: heal-nginx
+    max_repairs_per_hour: 5
+
+  - rule: disk-full
+    check: disk-check
+    recipe: free-disk
+    max_repairs_per_hour: 2
+
+  - rule: cpu-overload
+    check: cpu-check
+    recipe: resource-alert
+    max_repairs_per_hour: 3
+
+  - rule: memory-overload
+    check: memory-check
+    recipe: resource-alert
+    max_repairs_per_hour: 3
+
+  - rule: cert-expiring
+    check: api-cert
+    recipe: cert-alert
+    max_repairs_per_hour: 1
