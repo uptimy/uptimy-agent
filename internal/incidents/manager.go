@@ -12,12 +12,21 @@ import (
 	"go.uber.org/zap"
 )
 
+// MetricsRecorder is the subset of metrics.Recorder used by the incident
+// manager to record check results and incident lifecycle metrics.
+type MetricsRecorder interface {
+	RecordCheckResult(result *checks.CheckResult)
+	RecordIncidentOpened(inc *Incident)
+	RecordIncidentResolved(inc *Incident, resolutionSeconds float64)
+}
+
 // Manager processes check results, creates and deduplicates incidents,
 // manages their lifecycle, and emits events for downstream consumers.
 type Manager struct {
-	logger *zap.SugaredLogger
-	store  storage.Store
-	events chan Event
+	logger   *zap.SugaredLogger
+	store    storage.Store
+	events   chan Event
+	recorder MetricsRecorder
 
 	mu     sync.RWMutex
 	active map[string]*Incident // keyed by check name
@@ -27,12 +36,13 @@ type Manager struct {
 
 // NewManager creates an IncidentManager.
 // events channel is where incident lifecycle events are published.
-func NewManager(store storage.Store, events chan Event, logger *zap.SugaredLogger) *Manager {
+func NewManager(store storage.Store, events chan Event, recorder MetricsRecorder, logger *zap.SugaredLogger) *Manager {
 	m := &Manager{
-		logger: logger,
-		store:  store,
-		events: events,
-		active: make(map[string]*Incident),
+		logger:   logger,
+		store:    store,
+		events:   events,
+		recorder: recorder,
+		active:   make(map[string]*Incident),
 	}
 	// Initialize the atomic counter to a timestamp-based value so IDs
 	// never collide with IDs generated before a restart.
@@ -86,24 +96,31 @@ func (m *Manager) Run(ctx context.Context, results <-chan checks.CheckResult) {
 
 // processResult handles a single check result.
 func (m *Manager) processResult(result *checks.CheckResult) {
+	// Record every check result through the Recorder (Prometheus + telemetry).
+	m.recorder.RecordCheckResult(result)
+
+	// Events to emit after releasing the lock.
+	var events []Event
+
 	m.mu.Lock()
-	defer m.mu.Unlock()
 
 	existing, hasActive := m.active[result.Name]
 
 	switch result.Status {
 	case checks.StatusHealthy:
 		if hasActive && existing.Status != StatusResolved {
-			m.resolveIncident(existing)
+			events = m.resolveIncidentLocked(existing)
 		}
 	case checks.StatusFailed, checks.StatusDegraded:
 		if hasActive {
 			// Deduplicate: increment failure count on existing incident.
 			existing.FailureCount++
 			existing.UpdatedAt = time.Now()
-			m.persistIncident(existing)
+			if err := m.persistIncident(existing); err != nil {
+				m.logger.Errorw("failed to persist incident update", "id", existing.ID, "error", err)
+			}
 
-			m.emit(Event{Incident: existing, Type: EventUpdated})
+			events = append(events, Event{Incident: existing.Copy(), Type: EventUpdated})
 			m.logger.Infow("incident updated",
 				"id", existing.ID,
 				"check", existing.CheckName,
@@ -113,15 +130,25 @@ func (m *Manager) processResult(result *checks.CheckResult) {
 			// New incident.
 			inc := m.createIncident(result)
 			m.active[result.Name] = inc
-			m.persistIncident(inc)
+			if err := m.persistIncident(inc); err != nil {
+				m.logger.Errorw("failed to persist new incident", "id", inc.ID, "error", err)
+			}
+			m.recorder.RecordIncidentOpened(inc)
 
-			m.emit(Event{Incident: inc, Type: EventOpened})
+			events = append(events, Event{Incident: inc.Copy(), Type: EventOpened})
 			m.logger.Infow("incident opened",
 				"id", inc.ID,
 				"check", inc.CheckName,
 				"service", inc.Service,
 			)
 		}
+	}
+
+	m.mu.Unlock()
+
+	// Emit events outside the lock to prevent deadlocks.
+	for _, event := range events {
+		m.emit(event)
 	}
 }
 
@@ -140,52 +167,69 @@ func (m *Manager) createIncident(result *checks.CheckResult) *Incident {
 	}
 }
 
-// resolveIncident transitions an incident to resolved.
-func (m *Manager) resolveIncident(inc *Incident) {
+// resolveIncidentLocked transitions an incident to resolved.
+// Must be called with m.mu held. Returns events to emit after releasing the lock.
+func (m *Manager) resolveIncidentLocked(inc *Incident) []Event {
 	now := time.Now()
 	inc.Status = StatusResolved
 	inc.UpdatedAt = now
 	inc.ResolvedAt = &now
-	m.persistIncident(inc)
+	if err := m.persistIncident(inc); err != nil {
+		m.logger.Errorw("failed to persist resolved incident", "id", inc.ID, "error", err)
+	}
+	m.recorder.RecordIncidentResolved(inc, now.Sub(inc.CreatedAt).Seconds())
 
 	// Remove from active map.
 	delete(m.active, inc.CheckName)
 
-	m.emit(Event{Incident: inc, Type: EventResolved})
 	m.logger.Infow("incident resolved",
 		"id", inc.ID,
 		"check", inc.CheckName,
 		"duration", now.Sub(inc.CreatedAt),
 	)
+
+	return []Event{{Incident: inc.Copy(), Type: EventResolved}}
 }
 
 // SetStatus updates an incident's status externally (e.g., from the repair engine).
 func (m *Manager) SetStatus(checkName string, status Status) {
+	var events []Event
+
 	m.mu.Lock()
-	defer m.mu.Unlock()
 
 	inc, ok := m.active[checkName]
 	if !ok {
+		m.mu.Unlock()
 		return
 	}
 
 	inc.Status = status
 	inc.UpdatedAt = time.Now()
-	m.persistIncident(inc)
+	if err := m.persistIncident(inc); err != nil {
+		m.logger.Errorw("failed to persist incident status change", "id", inc.ID, "error", err)
+	}
 
 	var eventType EventType
 	switch status {
 	case StatusRepairing:
 		eventType = EventRepairing
+		events = append(events, Event{Incident: inc.Copy(), Type: eventType})
 	case StatusFailed:
 		eventType = EventFailed
+		events = append(events, Event{Incident: inc.Copy(), Type: eventType})
 	case StatusResolved:
-		m.resolveIncident(inc)
-		return
+		events = m.resolveIncidentLocked(inc)
 	default:
 		eventType = EventUpdated
+		events = append(events, Event{Incident: inc.Copy(), Type: eventType})
 	}
-	m.emit(Event{Incident: inc, Type: eventType})
+
+	m.mu.Unlock()
+
+	// Emit events outside the lock to prevent deadlocks.
+	for _, event := range events {
+		m.emit(event)
+	}
 }
 
 // GetActive returns a copy of the currently active incident for a check, if any.
@@ -208,7 +252,7 @@ func (m *Manager) ActiveCount() int {
 	return len(m.active)
 }
 
-func (m *Manager) persistIncident(inc *Incident) {
+func (m *Manager) persistIncident(inc *Incident) error {
 	si := &storage.Incident{
 		ID:           inc.ID,
 		CheckName:    inc.CheckName,
@@ -219,9 +263,7 @@ func (m *Manager) persistIncident(inc *Incident) {
 		UpdatedAt:    inc.UpdatedAt,
 		ResolvedAt:   inc.ResolvedAt,
 	}
-	if err := m.store.SaveIncident(si); err != nil {
-		m.logger.Errorw("failed to persist incident", "id", inc.ID, "error", err)
-	}
+	return m.store.SaveIncident(si)
 }
 
 func (m *Manager) emit(event Event) {

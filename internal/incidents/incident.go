@@ -27,6 +27,17 @@ type Incident struct {
 	ResolvedAt   *time.Time `json:"resolved_at,omitempty"`
 }
 
+// Copy returns a shallow copy of the Incident to avoid data races
+// when emitting events outside of a lock.
+func (inc *Incident) Copy() *Incident {
+	cp := *inc
+	if inc.ResolvedAt != nil {
+		resolved := *inc.ResolvedAt
+		cp.ResolvedAt = &resolved
+	}
+	return &cp
+}
+
 // EventType describes the kind of incident lifecycle change.
 type EventType string
 

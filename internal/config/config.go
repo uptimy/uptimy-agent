@@ -5,6 +5,7 @@ package config
 import (
 	"fmt"
 	"os"
+	"strings"
 	"time"
 
 	"gopkg.in/yaml.v3"
@@ -54,6 +55,9 @@ type CheckConfig struct {
 	CertURL          string `yaml:"cert_url,omitempty"`           // URL to check certificate from
 	CertPath         string `yaml:"cert_path,omitempty"`          // Path to certificate file
 	DaysBeforeExpiry int    `yaml:"days_before_expiry,omitempty"` // Alert if expiring within this many days
+
+	// Docker check parameters
+	ContainerName string `yaml:"container_name,omitempty"` // Docker container name or ID to check
 }
 
 // RepairRuleConfig maps a check to a repair recipe.
@@ -111,10 +115,31 @@ type KubernetesConfig struct {
 }
 
 // ControlPlaneConfig holds control plane connection settings.
+// The control plane is considered enabled when both AgentUUID and APIKey are set.
 type ControlPlaneConfig struct {
-	Enabled  bool   `yaml:"enabled"`
-	Endpoint string `yaml:"endpoint,omitempty"`
-	Token    string `yaml:"token,omitempty"`
+	Endpoint  string `yaml:"endpoint,omitempty"`
+	AgentUUID string `yaml:"agent_uuid,omitempty"`
+	APIKey    string `yaml:"api_key,omitempty"`
+	UseTLS    *bool  `yaml:"use_tls,omitempty"` // nil = auto-detect from endpoint
+}
+
+// Enabled returns true when both AgentUUID and APIKey are configured.
+func (cp *ControlPlaneConfig) Enabled() bool {
+	return cp.AgentUUID != "" && cp.APIKey != ""
+}
+
+// TLSEnabled returns whether TLS should be used.
+// If UseTLS is not explicitly set, it defaults to true for port 443
+// and false otherwise.
+func (cp *ControlPlaneConfig) TLSEnabled() bool {
+	if cp.UseTLS != nil {
+		return *cp.UseTLS
+	}
+	// Auto-detect: use TLS for port 443 or if no port specified
+	if strings.HasSuffix(cp.Endpoint, ":443") || !strings.Contains(cp.Endpoint, ":") {
+		return true
+	}
+	return false
 }
 
 // LoggingConfig holds logging settings.
@@ -169,6 +194,9 @@ func (c *Config) Validate() error {
 		if ch.Name == "" {
 			return fmt.Errorf("check name must not be empty")
 		}
+		if checkNames[ch.Name] {
+			return fmt.Errorf("duplicate check name %q", ch.Name)
+		}
 		if ch.Type == "" {
 			return fmt.Errorf("check %q: type must not be empty", ch.Name)
 		}
@@ -186,6 +214,9 @@ func (c *Config) Validate() error {
 	for _, r := range c.Recipes {
 		if r.Name == "" {
 			return fmt.Errorf("recipe name must not be empty")
+		}
+		if recipeNames[r.Name] {
+			return fmt.Errorf("duplicate recipe name %q", r.Name)
 		}
 		for i, step := range r.Steps {
 			if step.Action == "" {
@@ -231,8 +262,8 @@ func (c *Config) Validate() error {
 	}
 
 	// Validate control plane config.
-	if c.ControlPlane.Enabled && c.ControlPlane.Endpoint == "" {
-		return fmt.Errorf("control_plane.endpoint must not be empty when control_plane is enabled")
+	if c.ControlPlane.Enabled() && c.ControlPlane.Endpoint == "" {
+		return fmt.Errorf("control_plane.endpoint must not be empty when agent_uuid and api_key are set")
 	}
 
 	return nil

@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/uptimy/uptimy-agent/internal/checks"
 	"github.com/uptimy/uptimy-agent/internal/config"
 	"github.com/uptimy/uptimy-agent/internal/incidents"
 	"github.com/uptimy/uptimy-agent/internal/logging"
@@ -25,6 +26,19 @@ func (s *memStore) ListRepairRecords() ([]*storage.RepairRecord, error) { return
 func (s *memStore) SaveConfigCache(key string, data []byte) error       { return nil }
 func (s *memStore) GetConfigCache(key string) ([]byte, error)           { return nil, nil }
 func (s *memStore) Close() error                                        { return nil }
+
+// nopRepairRecorder satisfies repair.Recorder without side effects.
+type nopRepairRecorder struct{}
+
+func (n *nopRepairRecorder) RecordRepairStarted(_, _, _ string)                 {}
+func (n *nopRepairRecorder) RecordRepairCompleted(_, _, _, _ string, _ float64) {}
+
+// nopIncidentRecorder satisfies incidents.MetricsRecorder for NewManager.
+type nopIncidentRecorder struct{}
+
+func (n *nopIncidentRecorder) RecordCheckResult(_ *checks.CheckResult)                 {}
+func (n *nopIncidentRecorder) RecordIncidentOpened(_ *incidents.Incident)              {}
+func (n *nopIncidentRecorder) RecordIncidentResolved(_ *incidents.Incident, _ float64) {}
 
 // successAction always succeeds.
 type successAction struct{ name string }
@@ -51,7 +65,7 @@ func TestEngine_ExecutesRecipe(t *testing.T) {
 	store := &memStore{}
 	logger := logging.Nop()
 	incEvents := make(chan incidents.Event, 10)
-	incMgr := incidents.NewManager(store, incEvents, logger)
+	incMgr := incidents.NewManager(store, incEvents, &nopIncidentRecorder{}, logger)
 
 	actionRegistry := repair.NewActionRegistry()
 	action := &successAction{name: "test_success"}
@@ -62,7 +76,7 @@ func TestEngine_ExecutesRecipe(t *testing.T) {
 	guardrails := repair.NewGuardrails()
 	guardrails.AllowAction("test_success")
 
-	engine := repair.NewEngine(actionRegistry, guardrails, store, incMgr, logger)
+	engine := repair.NewEngine(actionRegistry, guardrails, store, incMgr, &nopRepairRecorder{}, logger)
 	engine.LoadConfig(
 		[]config.RepairRuleConfig{
 			{Rule: "test-rule", Check: "test-check", Recipe: "test-recipe"},
@@ -102,7 +116,7 @@ func TestEngine_RespectsGuardrails(t *testing.T) {
 	store := &memStore{}
 	logger := logging.Nop()
 	incEvents := make(chan incidents.Event, 10)
-	incMgr := incidents.NewManager(store, incEvents, logger)
+	incMgr := incidents.NewManager(store, incEvents, &nopIncidentRecorder{}, logger)
 
 	actionRegistry := repair.NewActionRegistry()
 	action := &successAction{name: "test_success"}
@@ -114,7 +128,7 @@ func TestEngine_RespectsGuardrails(t *testing.T) {
 	guardrails.AllowAction("test_success")
 	guardrails.SetMaxRepairsPerHour("test-rule", 1)
 
-	engine := repair.NewEngine(actionRegistry, guardrails, store, incMgr, logger)
+	engine := repair.NewEngine(actionRegistry, guardrails, store, incMgr, &nopRepairRecorder{}, logger)
 	engine.LoadConfig(
 		[]config.RepairRuleConfig{
 			{Rule: "test-rule", Check: "test-check", Recipe: "test-recipe", MaxRepairsPerHour: 1},
@@ -167,7 +181,7 @@ func TestEngine_HandlesActionFailure(t *testing.T) {
 	store := &memStore{}
 	logger := logging.Nop()
 	incEvents := make(chan incidents.Event, 10)
-	incMgr := incidents.NewManager(store, incEvents, logger)
+	incMgr := incidents.NewManager(store, incEvents, &nopIncidentRecorder{}, logger)
 
 	actionRegistry := repair.NewActionRegistry()
 	action := &failAction{name: "test_fail"}
@@ -178,7 +192,7 @@ func TestEngine_HandlesActionFailure(t *testing.T) {
 	guardrails := repair.NewGuardrails()
 	guardrails.AllowAction("test_fail")
 
-	engine := repair.NewEngine(actionRegistry, guardrails, store, incMgr, logger)
+	engine := repair.NewEngine(actionRegistry, guardrails, store, incMgr, &nopRepairRecorder{}, logger)
 	engine.LoadConfig(
 		[]config.RepairRuleConfig{
 			{Rule: "fail-rule", Check: "fail-check", Recipe: "fail-recipe"},

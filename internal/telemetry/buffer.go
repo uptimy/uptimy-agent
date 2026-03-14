@@ -8,9 +8,9 @@ import (
 
 // Event represents a telemetry event to be sent to the control plane.
 type Event struct {
-	Type      string                 `json:"type"`
-	Timestamp time.Time              `json:"timestamp"`
-	Data      map[string]interface{} `json:"data"`
+	Type      string            `json:"type"`
+	Timestamp time.Time         `json:"timestamp"`
+	Data      map[string]string `json:"data"`
 }
 
 // RingBuffer is a fixed-capacity circular buffer for telemetry events.

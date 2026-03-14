@@ -36,6 +36,10 @@ message Heartbeat {
   int64 timestamp = 1;
   string status = 2;
   int32 active_incidents = 3;
+  string hostname = 4;
+  string os = 5;
+  string architecture = 6;
+  string version = 7;
 }
 
 message TelemetryBatch {
@@ -54,7 +58,7 @@ message IncidentReport {
   string service = 3;
   string status = 4;
   int32 failure_count = 5;
-  int64 created_at = 6;
+  int64 event_created_at = 6;
 }
 
 message RepairReport {
@@ -63,9 +67,8 @@ message RepairReport {
   string rule = 3;
   string recipe = 4;
   string status = 5;
-  int64 started_at = 6;
-  int64 finished_at = 7;
-  string error = 8;
+  int64 event_created_at = 6;
+  int64 duration = 7;
 }
 
 message ConfigUpdate {

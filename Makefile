@@ -15,7 +15,7 @@ build:
 	go build -ldflags "$(LDFLAGS)" -o bin/$(BINARY_NAME) ./cmd/agent
 
 run: build
-	./bin/$(BINARY_NAME) run --config configs/default.yaml
+	env $$(cat .env 2>/dev/null || echo) ./bin/$(BINARY_NAME) run --config configs/default.yaml
 
 test:
 	go test -race -count=1 ./...

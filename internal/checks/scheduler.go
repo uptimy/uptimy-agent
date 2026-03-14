@@ -24,8 +24,11 @@ type Scheduler struct {
 
 	checks []scheduledCheck
 
-	cancel context.CancelFunc
-	wg     sync.WaitGroup
+	mu       sync.Mutex
+	cancel   context.CancelFunc
+	jobs     chan scheduledJob
+	tickerWg sync.WaitGroup // tracks ticker goroutines (producers)
+	workerWg sync.WaitGroup // tracks worker goroutines (consumers)
 }
 
 // NewScheduler creates a Scheduler wired to the given registry and result channel.
@@ -46,27 +49,32 @@ func (s *Scheduler) AddCheck(c Check, interval time.Duration) {
 // Start begins executing all scheduled checks. It blocks until ctx is canceled.
 // Calling Start more than once without Stop will stop the previous run first.
 func (s *Scheduler) Start(ctx context.Context) {
+	s.mu.Lock()
 	// Ensure idempotency: stop any previous run before starting a new one.
 	if s.cancel != nil {
 		s.cancel()
-		s.wg.Wait()
+		s.mu.Unlock()
+		s.tickerWg.Wait()
+		s.workerWg.Wait()
+		s.mu.Lock()
 	}
 	ctx, s.cancel = context.WithCancel(ctx)
 
 	// Worker pool that executes check jobs.
-	jobs := make(chan scheduledJob, len(s.checks))
+	s.jobs = make(chan scheduledJob, len(s.checks))
+	jobs := s.jobs
+	s.mu.Unlock()
 
 	for i := 0; i < s.workers; i++ {
-		s.wg.Add(1)
+		s.workerWg.Add(1)
 		go s.worker(ctx, jobs)
 	}
 
 	// Launch a ticker goroutine per check that feeds jobs to the worker pool.
 	for _, sc := range s.checks {
-		sc := sc
-		s.wg.Add(1)
+		s.tickerWg.Add(1)
 		go func() {
-			defer s.wg.Done()
+			defer s.tickerWg.Done()
 			ticker := time.NewTicker(sc.interval)
 			defer ticker.Stop()
 
@@ -95,10 +103,24 @@ func (s *Scheduler) Start(ctx context.Context) {
 
 // Stop signals all goroutines to stop and waits for them to finish.
 func (s *Scheduler) Stop() {
+	s.mu.Lock()
 	if s.cancel != nil {
 		s.cancel()
 	}
-	s.wg.Wait()
+	jobs := s.jobs
+	s.jobs = nil
+	s.mu.Unlock()
+
+	// Wait for all ticker goroutines (producers) to exit first.
+	s.tickerWg.Wait()
+
+	// Now safe to close the channel - no more senders.
+	if jobs != nil {
+		close(jobs)
+	}
+
+	// Wait for all worker goroutines (consumers) to exit.
+	s.workerWg.Wait()
 }
 
 type scheduledJob struct {
@@ -106,12 +128,16 @@ type scheduledJob struct {
 }
 
 func (s *Scheduler) worker(ctx context.Context, jobs <-chan scheduledJob) {
-	defer s.wg.Done()
+	defer s.workerWg.Done()
 	for {
 		select {
 		case <-ctx.Done():
 			return
-		case job := <-jobs:
+		case job, ok := <-jobs:
+			if !ok {
+				// Channel closed, exit worker.
+				return
+			}
 			result := job.check.Run(ctx)
 			select {
 			case s.results <- result:

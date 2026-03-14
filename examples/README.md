@@ -25,6 +25,7 @@ sudo systemctl enable --now uptimy-agent
 | [web-service-monitoring.yaml](web-service-monitoring.yaml) | Web API + Nginx monitoring | HTTP, Process | restart_container, restart_service, webhook |
 | [database-monitoring.yaml](database-monitoring.yaml) | Postgres, Redis, MySQL | TCP | restart_service, restart_container, webhook |
 | [disk-and-resource-monitoring.yaml](disk-and-resource-monitoring.yaml) | Disk, CPU, memory management | Disk, CPU, Memory | clear_temp, rotate_logs, webhook |
+| [docker-swarm-monitoring.yaml](docker-swarm-monitoring.yaml) | Docker & Swarm self-healing | Docker Container, Docker Swarm, HTTP | start_container, stop_container, restart_container, update_swarm_service |
 | [kubernetes-self-healing.yaml](kubernetes-self-healing.yaml) | K8s microservices healing | HTTP, TCP | restart_pod, rollback_deployment, scale_replicas |
 | [certificate-monitoring.yaml](certificate-monitoring.yaml) | TLS/SSL cert expiry alerts | Certificate | webhook |
 | [full-stack-monitoring.yaml](full-stack-monitoring.yaml) | Complete production setup | All types | All actions |
@@ -40,13 +41,18 @@ sudo systemctl enable --now uptimy-agent
 | `memory` | Memory usage threshold | `threshold` (percent) |
 | `disk` | Disk usage threshold | `path`, `threshold` (percent) |
 | `certificate` | TLS certificate expiry | `cert_url` or `cert_path`, `days_before_expiry` |
+| `docker_container` | Docker container status | `container_name` |
+| `docker_swarm` | Docker Swarm cluster health | _(none — checks local node)_ |
 
 ## Available Repair Actions
 
 | Action | Description | Params |
 |--------|-------------|--------|
 | `restart_pod` | Delete and restart a Kubernetes pod | `pod`, `namespace`, `grace_period` |
-| `restart_container` | Restart a Docker container | `container` |
+| `restart_container` | Restart a Docker container | `container`, `timeout` |
+| `start_container` | Start a stopped Docker container | `container` |
+| `stop_container` | Stop a running Docker container | `container`, `timeout` |
+| `update_swarm_service` | Force-update a Swarm service (rolling restart) | `service` |
 | `restart_service` | Restart a systemd service | `service` |
 | `start_service` | Start a stopped systemd service | `service` |
 | `stop_service` | Stop a systemd service | `service` |

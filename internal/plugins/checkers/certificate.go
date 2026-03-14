@@ -6,6 +6,7 @@ import (
 	"crypto/x509"
 	"encoding/pem"
 	"fmt"
+	"net"
 	"os"
 	"time"
 
@@ -118,9 +119,22 @@ func (c *CertificateCheck) Run(ctx context.Context) checks.CheckResult {
 }
 
 // getCertFromURL retrieves certificate from an HTTPS endpoint.
+// InsecureSkipVerify is used because this checker needs to inspect certificates
+// that may be expired or have other validation issues. However, we still set
+// ServerName to ensure the certificate matches the expected hostname.
 func (c *CertificateCheck) getCertFromURL(ctx context.Context) (*x509.Certificate, error) {
+	// Extract hostname from the URL for TLS ServerName verification.
+	host, _, err := net.SplitHostPort(c.certURL)
+	if err != nil {
+		// Assume no port was specified; use the whole URL as host.
+		host = c.certURL
+	}
+
 	dialer := &tls.Dialer{
-		Config: &tls.Config{InsecureSkipVerify: true},
+		Config: &tls.Config{
+			InsecureSkipVerify: true, // Needed to check expired/invalid certs
+			ServerName:         host, // Still verify hostname to mitigate MITM
+		},
 	}
 
 	conn, err := dialer.DialContext(ctx, "tcp", c.certURL)

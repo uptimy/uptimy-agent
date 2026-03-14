@@ -21,7 +21,8 @@ kubernetes:
   enabled: "auto"
 
 control_plane:
-  enabled: false
+  agent_uuid: ${UPTIMY_AGENT_UUID}
+  api_key: ${UPTIMY_API_KEY}
 
 # Health checks
 checks:

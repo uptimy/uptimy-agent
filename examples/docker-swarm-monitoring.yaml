@@ -1,0 +1,178 @@
+# ──────────────────────────────────────────────────────────────────────
+#  Example: Docker & Swarm Monitoring
+#
+#  Scenario: You run a multi-container application on Docker, with an
+#  optional Docker Swarm cluster. The agent monitors individual
+#  containers and Swarm cluster health, automatically restarting
+#  stopped containers, cycling unhealthy ones, and force-updating
+#  Swarm services when tasks degrade.
+#
+#  Works with: Docker Engine, Docker Swarm
+# ──────────────────────────────────────────────────────────────────────
+
+agent:
+  name: docker-monitor
+  worker_pool_size: 4
+
+logging:
+  level: info
+  format: json
+
+storage:
+  path: /var/lib/uptimy/state.db
+
+# ── Health Checks ────────────────────────────────────────────────────
+
+checks:
+  # Monitor the main application container
+  - type: docker_container
+    name: app-container
+    service: my-app
+    container_name: my-app-web
+    interval: 15s
+    timeout: 10s
+
+  # Monitor a database container
+  - type: docker_container
+    name: db-container
+    service: postgres
+    container_name: my-app-db
+    interval: 15s
+    timeout: 10s
+
+  # Monitor a Redis cache container
+  - type: docker_container
+    name: cache-container
+    service: redis
+    container_name: my-app-redis
+    interval: 15s
+    timeout: 10s
+
+  # Monitor Docker Swarm cluster health (if using Swarm)
+  - type: docker_swarm
+    name: swarm-health
+    service: docker-swarm
+    interval: 60s
+    timeout: 10s
+
+  # Also verify the app is actually responding (not just the container running)
+  - type: http
+    name: app-http
+    service: my-app
+    url: http://localhost:8080/health
+    method: GET
+    expected_status: 200
+    interval: 15s
+    timeout: 5s
+
+# ── Repair Recipes ───────────────────────────────────────────────────
+
+recipes:
+  # Start a stopped container, wait for it to come up, verify
+  - name: start-stopped-container
+    steps:
+      - action: start_container
+        retries: 2
+        params:
+          container: my-app-web
+      - action: wait
+        duration: 10s
+      - action: healthcheck
+        check: app-container
+      - action: webhook
+        on_failure_only: true
+        params:
+          url: ${ALERT_WEBHOOK_URL}
+          method: POST
+
+  # Stop and start a container cleanly (for unhealthy containers)
+  - name: cycle-unhealthy-container
+    steps:
+      - action: stop_container
+        params:
+          container: my-app-web
+          timeout: 30s
+      - action: start_container
+        retries: 2
+        params:
+          container: my-app-web
+      - action: wait
+        duration: 15s
+      - action: healthcheck
+        check: app-container
+
+  # Restart a container and verify (simplest repair)
+  - name: restart-container
+    steps:
+      - action: restart_container
+        retries: 2
+        params:
+          container: my-app-web
+          timeout: 30s
+      - action: wait
+        duration: 10s
+      - action: healthcheck
+        check: app-container
+      - action: healthcheck
+        check: app-http
+
+  # Force-update a Swarm service to trigger rolling restart of tasks
+  - name: update-swarm-service
+    steps:
+      - action: webhook
+        params:
+          url: ${ALERT_WEBHOOK_URL}
+          method: POST
+      - action: update_swarm_service
+        params:
+          service: my-app
+      - action: wait
+        duration: 30s
+      - action: healthcheck
+        check: swarm-health
+
+  # Database container restart
+  - name: restart-db
+    steps:
+      - action: restart_container
+        retries: 1
+        params:
+          container: my-app-db
+          timeout: 60s
+      - action: wait
+        duration: 20s
+      - action: healthcheck
+        check: db-container
+
+# ── Repair Rules ─────────────────────────────────────────────────────
+
+repairs:
+  # App container down → restart it
+  - rule: fix-app-container
+    check: app-container
+    recipe: restart-container
+    max_repairs_per_hour: 5
+
+  # App HTTP failing but container running → cycle the container
+  - rule: fix-app-unhealthy
+    check: app-http
+    recipe: cycle-unhealthy-container
+    max_repairs_per_hour: 3
+
+  # Database container down → restart it
+  - rule: fix-db-container
+    check: db-container
+    recipe: restart-db
+    max_repairs_per_hour: 3
+
+  # Redis container down → just restart it
+  - rule: fix-cache-container
+    check: cache-container
+    recipe: restart-container
+    max_repairs_per_hour: 5
+
+  # Swarm degraded → force-update the service
+  - rule: fix-swarm-service
+    check: swarm-health
+    recipe: update-swarm-service
+    max_repairs_per_hour: 2

@@ -36,18 +36,21 @@ func NewGuardrails() *Guardrails {
 		cooldowns:     make(map[string]time.Duration),
 		lastExecution: make(map[string]time.Time),
 		allowedActions: map[string]bool{
-			"restart_pod":         true,
-			"restart_container":   true,
-			"restart_service":     true,
-			"start_service":       true,
-			"stop_service":        true,
-			"rollback_deployment": true,
-			"scale_replicas":      true,
-			"wait":                true,
-			"healthcheck":         true,
-			"clear_temp":          true,
-			"rotate_logs":         true,
-			"webhook":             true,
+			"restart_pod":          true,
+			"restart_container":    true,
+			"start_container":      true,
+			"stop_container":       true,
+			"update_swarm_service": true,
+			"restart_service":      true,
+			"start_service":        true,
+			"stop_service":         true,
+			"rollback_deployment":  true,
+			"scale_replicas":       true,
+			"wait":                 true,
+			"healthcheck":          true,
+			"clear_temp":           true,
+			"rotate_logs":          true,
+			"webhook":              true,
 		},
 		forbiddenActions: map[string]bool{
 			"shell_exec":     true,
@@ -140,10 +143,22 @@ func (g *Guardrails) CheckRateLimit(rule string) error {
 }
 
 // RecordRepair records that a repair was executed for rate-limiting purposes.
+// It also prunes old entries to prevent memory leaks.
 func (g *Guardrails) RecordRepair(rule string) {
 	g.mu.Lock()
 	defer g.mu.Unlock()
-	g.repairHistory[rule] = append(g.repairHistory[rule], time.Now())
+
+	// Prune old entries while we're here to prevent memory leak.
+	cutoff := time.Now().Add(-1 * time.Hour)
+	history := g.repairHistory[rule]
+	pruned := make([]time.Time, 0, len(history))
+	for _, t := range history {
+		if t.After(cutoff) {
+			pruned = append(pruned, t)
+		}
+	}
+	pruned = append(pruned, time.Now())
+	g.repairHistory[rule] = pruned
 }
 
 // RecordActionExecution records that an action was executed for cooldown tracking.

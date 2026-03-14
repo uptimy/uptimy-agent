@@ -12,6 +12,13 @@ import (
 	"go.uber.org/zap"
 )
 
+// Recorder is the subset of metrics.Recorder used by the repair
+// engine to record repair lifecycle metrics and telemetry events.
+type Recorder interface {
+	RecordRepairStarted(incidentID, rule, recipe string)
+	RecordRepairCompleted(incidentID, rule, recipe, status string, durationSeconds float64)
+}
+
 // Engine listens for incident events and executes matching repair recipes.
 type Engine struct {
 	logger     *zap.SugaredLogger
@@ -19,6 +26,7 @@ type Engine struct {
 	guardrails *Guardrails
 	store      storage.Store
 	incMgr     *incidents.Manager
+	recorder   Recorder
 
 	// rules maps check names to repair rules.
 	rules map[string]config.RepairRuleConfig
@@ -36,6 +44,7 @@ func NewEngine(
 	guardrails *Guardrails,
 	store storage.Store,
 	incMgr *incidents.Manager,
+	recorder Recorder,
 	logger *zap.SugaredLogger,
 ) *Engine {
 	return &Engine{
@@ -44,6 +53,7 @@ func NewEngine(
 		guardrails: guardrails,
 		store:      store,
 		incMgr:     incMgr,
+		recorder:   recorder,
 		rules:      make(map[string]config.RepairRuleConfig),
 		recipes:    make(map[string]*Recipe),
 		sem:        make(chan struct{}, 10), // max 10 concurrent repairs
@@ -114,11 +124,20 @@ func (e *Engine) Run(ctx context.Context, events <-chan incidents.Event) {
 				e.wg.Add(1)
 				go func(inc *incidents.Incident) {
 					defer e.wg.Done()
-					// Acquire semaphore to limit concurrency.
+					// Acquire semaphore to limit concurrency with timeout.
+					semTimeout := time.NewTimer(30 * time.Second)
 					select {
 					case e.sem <- struct{}{}:
+						semTimeout.Stop()
 						defer func() { <-e.sem }()
+					case <-semTimeout.C:
+						e.logger.Warnw("timed out waiting for repair semaphore",
+							"incident", inc.ID,
+							"check", inc.CheckName,
+						)
+						return
 					case <-ctx.Done():
+						semTimeout.Stop()
 						return
 					}
 					e.handleIncident(ctx, inc)
@@ -161,6 +180,7 @@ func (e *Engine) handleIncident(ctx context.Context, inc *incidents.Incident) {
 
 	// Mark incident as repairing.
 	e.incMgr.SetStatus(inc.CheckName, incidents.StatusRepairing)
+	e.recorder.RecordRepairStarted(inc.ID, rule.Rule, recipe.Name)
 
 	result := e.executeRecipe(ctx, recipe, inc.ID)
 
@@ -168,7 +188,9 @@ func (e *Engine) handleIncident(ctx context.Context, inc *incidents.Incident) {
 	e.guardrails.RecordRepair(rule.Rule)
 	e.persistResult(&result, rule)
 
+	duration := result.FinishedAt.Sub(result.StartedAt).Seconds()
 	if result.Status == RecipeSuccess {
+		e.recorder.RecordRepairCompleted(inc.ID, rule.Rule, recipe.Name, "success", duration)
 		e.logger.Infow("repair recipe succeeded",
 			"incident", inc.ID,
 			"recipe", recipe.Name,
@@ -176,6 +198,7 @@ func (e *Engine) handleIncident(ctx context.Context, inc *incidents.Incident) {
 		)
 		e.incMgr.SetStatus(inc.CheckName, incidents.StatusVerifying)
 	} else {
+		e.recorder.RecordRepairCompleted(inc.ID, rule.Rule, recipe.Name, "failed", duration)
 		e.logger.Errorw("repair recipe failed",
 			"incident", inc.ID,
 			"recipe", recipe.Name,

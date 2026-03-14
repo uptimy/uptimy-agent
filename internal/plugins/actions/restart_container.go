@@ -3,14 +3,14 @@ package actions
 import (
 	"context"
 	"fmt"
-	"os/exec"
-	"strings"
 	"time"
 
+	"github.com/docker/docker/api/types/container"
+	dockerclient "github.com/docker/docker/client"
 	"go.uber.org/zap"
 )
 
-// RestartContainerAction restarts a Docker container via the Docker CLI.
+// RestartContainerAction restarts a Docker container using the Docker Engine SDK.
 type RestartContainerAction struct {
 	logger *zap.SugaredLogger
 }
@@ -25,56 +25,46 @@ func (a *RestartContainerAction) Name() string { return "restart_container" }
 
 // Execute runs the restart container action.
 func (a *RestartContainerAction) Execute(ctx context.Context, params map[string]string) error {
-	container := params["container"]
-	if container == "" {
+	containerName := params["container"]
+	if containerName == "" {
 		return fmt.Errorf("restart_container: 'container' parameter is required")
 	}
 
-	// Validate the container name/ID to prevent command injection.
-	if err := validateContainerName(container); err != nil {
-		return fmt.Errorf("restart_container: %w", err)
-	}
-
-	timeout := "30"
+	var stopTimeout *int
 	if v, ok := params["timeout"]; ok {
-		// Accept a Go duration string ("30s") or plain seconds ("30").
 		if d, err := time.ParseDuration(v); err == nil {
-			timeout = fmt.Sprintf("%d", int(d.Seconds()))
-		} else {
-			timeout = v
+			secs := int(d.Seconds())
+			stopTimeout = &secs
 		}
 	}
 
-	a.logger.Infow("restarting docker container", "container", container, "timeout", timeout)
+	a.logger.Infow("restarting docker container", "container", containerName)
 
-	cmd := exec.CommandContext(ctx, "docker", "restart", "--time", timeout, container)
-	output, err := cmd.CombinedOutput()
+	cli, err := dockerclient.NewClientWithOpts(dockerclient.FromEnv, dockerclient.WithAPIVersionNegotiation())
 	if err != nil {
-		return fmt.Errorf("restart_container: docker restart %s failed: %w (output: %s)",
-			container, err, strings.TrimSpace(string(output)))
+		return fmt.Errorf("restart_container: failed to create docker client: %w", err)
+	}
+	defer func() { _ = cli.Close() }()
+
+	opts := container.StopOptions{Timeout: stopTimeout}
+	if restartErr := cli.ContainerRestart(ctx, containerName, opts); restartErr != nil {
+		return fmt.Errorf("restart_container: failed to restart container %s: %w", containerName, err)
 	}
 
-	a.logger.Infow("container restarted successfully", "container", container)
-	return nil
-}
+	// Verify the container is running after restart.
+	info, err := cli.ContainerInspect(ctx, containerName)
+	if err != nil {
+		return fmt.Errorf("restart_container: failed to inspect container %s after restart: %w", containerName, err)
+	}
 
-// validateContainerName rejects suspicious container names to avoid
-// shell-injection-style attacks through crafted parameter values.
-func validateContainerName(name string) error {
-	for _, r := range name {
-		if !isValidContainerRune(r) {
-			return fmt.Errorf("invalid character %q in container name", r)
+	if info.State == nil || info.State.Status != container.StateRunning {
+		status := "unknown"
+		if info.State != nil {
+			status = info.State.Status
 		}
+		return fmt.Errorf("restart_container: container %s did not become running after restart (status: %s)", containerName, status)
 	}
-	if name == "" || name == "." || name == ".." {
-		return fmt.Errorf("invalid container name %q", name)
-	}
-	return nil
-}
 
-func isValidContainerRune(r rune) bool {
-	return (r >= 'a' && r <= 'z') ||
-		(r >= 'A' && r <= 'Z') ||
-		(r >= '0' && r <= '9') ||
-		r == '_' || r == '-' || r == '.'
+	a.logger.Infow("container restarted successfully", "container", containerName)
+	return nil
 }

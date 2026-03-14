@@ -1,6 +1,7 @@
 package telemetry_test
 
 import (
+	"fmt"
 	"testing"
 	"time"
 
@@ -37,7 +38,7 @@ func TestRingBuffer_Overflow(t *testing.T) {
 		buf.Push(telemetry.Event{
 			Type:      "test",
 			Timestamp: time.Now(),
-			Data:      map[string]interface{}{"index": i},
+			Data:      map[string]string{"index": fmt.Sprintf("%d", i)},
 		})
 	}
 
@@ -52,10 +53,9 @@ func TestRingBuffer_Overflow(t *testing.T) {
 
 	// Should contain the last 3 events (indices 2, 3, 4).
 	for i, ev := range events {
-		expected := i + 2
-		got, ok := ev.Data["index"].(int)
-		if !ok || got != expected {
-			t.Errorf("event %d: expected index %d, got %v", i, expected, ev.Data["index"])
+		expected := fmt.Sprintf("%d", i+2)
+		if ev.Data["index"] != expected {
+			t.Errorf("event %d: expected index %s, got %s", i, expected, ev.Data["index"])
 		}
 	}
 }

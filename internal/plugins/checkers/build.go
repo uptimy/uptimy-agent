@@ -82,6 +82,12 @@ func BuildFromConfig(
 			}
 			c = NewCertificateCheck(cc.Name, cc.Service, cc.CertPath, cc.CertURL, daysBeforeExpiry, timeout)
 
+		case "docker_container":
+			c = NewDockerContainerCheck(cc.Name, cc.Service, cc.ContainerName, timeout)
+
+		case "docker_swarm":
+			c = NewDockerSwarmCheck(cc.Name, cc.Service, timeout)
+
 		default:
 			logger.Warnw("unknown check type, skipping", "type", cc.Type, "name", cc.Name)
 			continue

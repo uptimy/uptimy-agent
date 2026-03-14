@@ -12,6 +12,7 @@ import (
 	"github.com/uptimy/uptimy-agent/internal/incidents"
 	"github.com/uptimy/uptimy-agent/internal/kubernetes"
 	"github.com/uptimy/uptimy-agent/internal/logging"
+	metricspkg "github.com/uptimy/uptimy-agent/internal/metrics"
 	"github.com/uptimy/uptimy-agent/internal/plugins/actions"
 	"github.com/uptimy/uptimy-agent/internal/plugins/checkers"
 	"github.com/uptimy/uptimy-agent/internal/repair"
@@ -34,11 +35,13 @@ type Runtime struct {
 	RepairEngine       *repair.Engine
 	ActionRegistry     *repair.ActionRegistry
 	Guardrails         *repair.Guardrails
-	TelemetryClient    *telemetry.Client
+	Recorder           *metricspkg.Recorder
 	MetricsExporter    *telemetry.Exporter
-	Metrics            *telemetry.Metrics
 	KubeWatcher        *kubernetes.Watcher
 	ControlPlaneClient *client.ControlPlaneClient
+
+	// eventBuffer holds telemetry events for control plane draining.
+	eventBuffer *telemetry.RingBuffer
 
 	// Internal channels connecting modules.
 	checkResults   chan checks.CheckResult
@@ -61,8 +64,9 @@ func New(cfg *config.Config) (*Runtime, error) {
 
 	// Metrics & Telemetry
 	metrics := telemetry.NewMetrics()
-	telClient := telemetry.NewClient(cfg.Telemetry.BufferSize, metrics, logger)
+	eventBuffer := telemetry.NewRingBuffer(cfg.Telemetry.BufferSize)
 	exporter := telemetry.NewExporter(cfg.Telemetry.MetricsPort, metrics.Registry, logger)
+	recorder := metricspkg.NewRecorder(metrics, eventBuffer)
 
 	// Channels
 	checkResults := make(chan checks.CheckResult, 256)
@@ -77,7 +81,7 @@ func New(cfg *config.Config) (*Runtime, error) {
 	}
 
 	// Incident manager
-	incMgr := incidents.NewManager(store, incidentEvents, logger)
+	incMgr := incidents.NewManager(store, incidentEvents, recorder, logger)
 
 	// Rehydrate active incidents from storage so repairs resume after restart.
 	if err := incMgr.Rehydrate(); err != nil {
@@ -110,6 +114,9 @@ func New(cfg *config.Config) (*Runtime, error) {
 		actions.NewHealthcheckAction(checkRegistry, logger),
 		actions.NewRestartPodAction(kubeClient, logger),
 		actions.NewRestartContainerAction(logger),
+		actions.NewStartContainerAction(logger),
+		actions.NewStopContainerAction(logger),
+		actions.NewUpdateSwarmServiceAction(logger),
 		actions.NewRestartServiceAction(logger),
 		actions.NewStartServiceAction(logger),
 		actions.NewStopServiceAction(logger),
@@ -127,7 +134,7 @@ func New(cfg *config.Config) (*Runtime, error) {
 		}
 	}
 
-	repairEngine := repair.NewEngine(actionRegistry, guardrails, store, incMgr, logger)
+	repairEngine := repair.NewEngine(actionRegistry, guardrails, store, incMgr, recorder, logger)
 	repairEngine.LoadConfig(cfg.Repairs, cfg.Recipes)
 
 	// Kubernetes watcher (optional)
@@ -138,8 +145,30 @@ func New(cfg *config.Config) (*Runtime, error) {
 
 	// Control plane client (optional)
 	var cpClient *client.ControlPlaneClient
-	if cfg.ControlPlane.Enabled && cfg.ControlPlane.Endpoint != "" {
-		cpClient = client.NewControlPlaneClient(cfg.ControlPlane.Endpoint, cfg.ControlPlane.Token, logger)
+	if cfg.ControlPlane.Enabled() && cfg.ControlPlane.Endpoint != "" {
+		opts := []client.Option{
+			client.WithTelemetryDrainer(eventBuffer),
+			client.WithActiveIncidentCounter(incMgr),
+			client.WithConfigUpdateHandler(func(version int32, bundleURL, signature string) {
+				logger.Infow("config update received (stub — not applied)",
+					"version", version,
+					"bundle_url", bundleURL,
+				)
+			}),
+		}
+		if cfg.ControlPlane.TLSEnabled() {
+			opts = append(opts, client.WithTLS())
+		}
+		cpClient = client.NewControlPlaneClient(
+			cfg.ControlPlane.Endpoint,
+			cfg.ControlPlane.AgentUUID,
+			cfg.ControlPlane.APIKey,
+			logger,
+			opts...,
+		)
+
+		// Wire the control plane client as the reporter for incidents/repairs.
+		recorder.SetReporter(cpClient)
 	}
 
 	return &Runtime{
@@ -152,11 +181,11 @@ func New(cfg *config.Config) (*Runtime, error) {
 		RepairEngine:       repairEngine,
 		ActionRegistry:     actionRegistry,
 		Guardrails:         guardrails,
-		TelemetryClient:    telClient,
+		Recorder:           recorder,
 		MetricsExporter:    exporter,
-		Metrics:            metrics,
 		KubeWatcher:        kubeWatcher,
 		ControlPlaneClient: cpClient,
+		eventBuffer:        eventBuffer,
 		checkResults:       checkResults,
 		incidentEvents:     incidentEvents,
 	}, nil
@@ -230,7 +259,7 @@ func (r *Runtime) Start(ctx context.Context) error {
 			case <-ctx.Done():
 				return nil
 			case <-ticker.C:
-				r.Metrics.AgentUptime.Inc()
+				r.Recorder.IncrementUptime()
 			}
 		}
 	})

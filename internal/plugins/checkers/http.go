@@ -3,11 +3,19 @@ package checkers
 import (
 	"context"
 	"fmt"
+	"io"
 	"net/http"
 	"time"
 
 	"github.com/uptimy/uptimy-agent/internal/checks"
 )
+
+// sharedHTTPTransport is reused across all HTTPCheck instances for connection pooling.
+var sharedHTTPTransport = &http.Transport{
+	MaxIdleConns:        100,
+	MaxIdleConnsPerHost: 10,
+	IdleConnTimeout:     90 * time.Second,
+}
 
 // HTTPCheck performs an HTTP request to verify endpoint health.
 type HTTPCheck struct {
@@ -33,7 +41,7 @@ func NewHTTPCheck(name, service, url, method string, expectedStatus int, timeout
 		expectedStatus: expectedStatus,
 		timeout:        timeout,
 		headers:        headers,
-		client:         &http.Client{},
+		client:         &http.Client{Transport: sharedHTTPTransport},
 	}
 }
 
@@ -74,7 +82,11 @@ func (c *HTTPCheck) Run(ctx context.Context) checks.CheckResult {
 			Duration:  time.Since(start),
 		}
 	}
-	defer resp.Body.Close() //nolint:errcheck // best-effort close of HTTP response body
+	// Drain and close body to enable connection reuse.
+	defer func() {
+		_, _ = io.Copy(io.Discard, resp.Body)
+		_ = resp.Body.Close()
+	}()
 
 	duration := time.Since(start)
 	metadata := map[string]string{

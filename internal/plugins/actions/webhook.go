@@ -113,8 +113,11 @@ func (a *WebhookAction) Execute(ctx context.Context, params map[string]string) e
 	}
 	defer resp.Body.Close() //nolint:errcheck // best-effort close of HTTP response body
 
-	// Read response
-	respBody, _ := io.ReadAll(io.LimitReader(resp.Body, 1024))
+	// Read response body for error context.
+	respBody, readErr := io.ReadAll(io.LimitReader(resp.Body, 1024))
+	if readErr != nil {
+		a.logger.Warnw("failed to read webhook response body", "error", readErr)
+	}
 
 	if resp.StatusCode >= 400 {
 		return fmt.Errorf("webhook: received status %d: %s", resp.StatusCode, string(respBody))

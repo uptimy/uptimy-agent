@@ -21,7 +21,7 @@ func DefaultConfig() *Config {
 			Enabled: KubeAuto,
 		},
 		ControlPlane: ControlPlaneConfig{
-			Enabled: false,
+			Endpoint: "grpc.coordinator.upti.my:443",
 		},
 		Logging: LoggingConfig{
 			Level:  "info",

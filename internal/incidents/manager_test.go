@@ -24,12 +24,19 @@ func (s *memStore) SaveConfigCache(key string, data []byte) error       { return
 func (s *memStore) GetConfigCache(key string) ([]byte, error)           { return nil, nil }
 func (s *memStore) Close() error                                        { return nil }
 
+// nopRecorder satisfies incidents.MetricsRecorder without side effects.
+type nopRecorder struct{}
+
+func (n *nopRecorder) RecordCheckResult(_ *checks.CheckResult)                 {}
+func (n *nopRecorder) RecordIncidentOpened(_ *incidents.Incident)              {}
+func (n *nopRecorder) RecordIncidentResolved(_ *incidents.Incident, _ float64) {}
+
 func TestManager_CreatesIncidentOnFailure(t *testing.T) {
 	store := &memStore{}
 	events := make(chan incidents.Event, 10)
 	logger := logging.Nop()
 
-	mgr := incidents.NewManager(store, events, logger)
+	mgr := incidents.NewManager(store, events, &nopRecorder{}, logger)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -68,7 +75,7 @@ func TestManager_DeduplicatesExistingIncident(t *testing.T) {
 	events := make(chan incidents.Event, 10)
 	logger := logging.Nop()
 
-	mgr := incidents.NewManager(store, events, logger)
+	mgr := incidents.NewManager(store, events, &nopRecorder{}, logger)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -120,7 +127,7 @@ func TestManager_ResolvesOnHealthy(t *testing.T) {
 	events := make(chan incidents.Event, 10)
 	logger := logging.Nop()
 
-	mgr := incidents.NewManager(store, events, logger)
+	mgr := incidents.NewManager(store, events, &nopRecorder{}, logger)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
